@@ -43,6 +43,53 @@ import math as _math, re as _re, requests as _requests
 WORKING_DIR = os.path.dirname(os.path.abspath(__file__))
 ARTIFACTS_DIR = os.path.join(WORKING_DIR, "artifacts")
 
+_mpl_runtime_ready = False
+
+
+def _ensure_matplotlib_runtime():
+    """Use non-interactive Agg backend, prefer CJK-capable fonts, silence headless/show noise."""
+    global _mpl_runtime_ready
+    if _mpl_runtime_ready:
+        return
+    try:
+        import matplotlib
+
+        matplotlib.use("Agg")
+
+        import warnings
+
+        warnings.filterwarnings(
+            "ignore",
+            message=r"Glyph .* missing from font",
+            category=UserWarning,
+        )
+        warnings.filterwarnings(
+            "ignore",
+            message=r"FigureCanvasAgg is non-interactive.*",
+            category=UserWarning,
+        )
+
+        import matplotlib.font_manager as fm
+        import matplotlib as mpl
+
+        mpl.rcParams["axes.unicode_minus"] = False
+        cjk_candidates = (
+            "AppleGothic",
+            "Apple SD Gothic Neo",
+            "Malgun Gothic",
+            "NanumGothic",
+            "NanumBarunGothic",
+            "Noto Sans CJK KR",
+            "Noto Sans KR",
+        )
+        mpl.rcParams["font.family"] = "sans-serif"
+        mpl.rcParams["font.sans-serif"] = list(cjk_candidates) + ["DejaVu Sans", "sans-serif"]
+
+        _mpl_runtime_ready = True
+    except Exception as e:
+        logger.info(f"matplotlib runtime setup skipped: {e}")
+        _mpl_runtime_ready = True
+
 _exec_globals = {
     "__builtins__": __builtins__,
     "subprocess": _subprocess,
@@ -110,6 +157,7 @@ def execute_code(code: str) -> str:
         old_stdout, old_stderr = sys.stdout, sys.stderr
         sys.stdout, sys.stderr = stdout_capture, stderr_capture
 
+        _ensure_matplotlib_runtime()
         exec(code, _exec_globals)
 
         sys.stdout, sys.stderr = old_stdout, old_stderr
@@ -225,7 +273,7 @@ def upload_file_to_s3(filepath: str) -> str:
     except Exception as e:
         return f"Upload failed: {str(e)}"
 
-def get_builtin_tools():
+def get_builtin_tools() -> list:
     """Return the list of built-in tools for the skill-aware agent."""
     return [execute_code, write_file, read_file, upload_file_to_s3, get_current_time]
 
@@ -241,12 +289,15 @@ async def call_model(state: State, config):
     
     image_url = state['image_url'] if 'image_url' in state else []
 
-    tools = get_builtin_tools() # built-in tools
-    mcp_tools = config.get("configurable", {}).get("tools", None) # MCP tools
+    tools = get_builtin_tools()
+    cfg = config.get("configurable") or {}
+    mcp_tools = cfg.get("tools")
+    if not mcp_tools and isinstance(config, dict):
+        mcp_tools = config.get("tools") or []
     if mcp_tools:
         tools.extend(mcp_tools)
 
-    system_prompt = config.get("configurable", {}).get("system_prompt", None)
+    system_prompt = cfg.get("system_prompt")
     
     if system_prompt:
         system = system_prompt
@@ -342,7 +393,8 @@ async def should_continue(state: State, config) -> Literal["continue", "end"]:
         return "end"
 
 def buildChatAgent(tools):
-    tool_node = ToolNode(tools)
+    all_tools = list(get_builtin_tools()) + list(tools or [])
+    tool_node = ToolNode(all_tools)
 
     workflow = StateGraph(State)
 
@@ -362,7 +414,8 @@ def buildChatAgent(tools):
     return workflow.compile() 
 
 def buildChatAgentWithHistory(tools):
-    tool_node = ToolNode(tools)
+    all_tools = list(get_builtin_tools()) + list(tools or [])
+    tool_node = ToolNode(all_tools)
 
     workflow = StateGraph(State)
 

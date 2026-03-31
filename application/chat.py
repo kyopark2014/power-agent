@@ -1166,17 +1166,21 @@ async def run_langgraph_agent(query, mcp_servers, history_mode, containers):
         app = langgraph_agent.buildChatAgentWithHistory(tools)
         config = {
             "recursion_limit": 50,
-            "configurable": {"thread_id": user_id},
-            "tools": tools,
-            "system_prompt": None
+            "configurable": {
+                "thread_id": user_id,
+                "tools": tools,
+                "system_prompt": None,
+            },
         }
     else:
         app = langgraph_agent.buildChatAgent(tools)
         config = {
             "recursion_limit": 50,
-            "configurable": {"thread_id": user_id},
-            "tools": tools,
-            "system_prompt": None
+            "configurable": {
+                "thread_id": user_id,
+                "tools": tools,
+                "system_prompt": None,
+            },
         }        
     
     inputs = {
