@@ -13,6 +13,10 @@ git clone https://github.com/kyopark2014/power-agent
 ```text
 python update_config.py
 ```
+4. 필요한 패키지를 설치합니다.
+```text
+pip install -r requirement.txt 
+```
 
 ### 실행
 
