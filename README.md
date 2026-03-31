@@ -1,2 +1,3 @@
-# power-agent
-It shows how to develop a power agent.
+# 전력 거래 솔루션을 위한 Agent
+
+여기서는 전력 거래 솔루션을 위한 Agent의 개발 및 기능 테스트를 위한 Agent를 구현합니다.
