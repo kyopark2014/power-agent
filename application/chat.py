@@ -630,7 +630,7 @@ knowledge_base_id = config.get('knowledge_base_id')
 number_of_results = 4
 
 
-def _s3_uri_to_console_url(uri: str, region: str) -> str:
+def s3_uri_to_console_url(uri: str, region: str) -> str:
     """Open the object in the AWS S3 console (when sharing_url is not configured)."""
     if not uri or not uri.startswith("s3://"):
         return ""
@@ -730,7 +730,7 @@ def retrieve(query):
                 if path:
                     url = f"{path}/{doc_prefix}{encoded_name}"
                 else:
-                    url = _s3_uri_to_console_url(uri, bedrock_region)
+                    url = s3_uri_to_console_url(uri, bedrock_region)
                 
             elif "webLocation" in location:
                 url = location["webLocation"]["url"] if location["webLocation"]["url"] is not None else ""
@@ -1138,8 +1138,11 @@ async def run_langgraph_agent(query, mcp_servers, history_mode, containers):
     try:
         client = MultiServerMCPClient(server_params)
         logger.info(f"MCP client created successfully")
-        
-        tools = await client.get_tools()
+
+        tools = langgraph_agent.get_builtin_tools()        
+        mcp_tools = await client.get_tools()
+        if mcp_tools:
+            tools.extend(mcp_tools)
         logger.info(f"get_tools() returned: {tools}")
         
         if tools is None:

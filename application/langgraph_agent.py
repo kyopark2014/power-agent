@@ -3,9 +3,6 @@ import sys
 import traceback
 import chat
 import utils
-import os
-import json
-import io
 import sys
 
 from langgraph.prebuilt import ToolNode
@@ -20,7 +17,6 @@ from typing import Literal
 from langgraph.graph import START, END, StateGraph
 from typing_extensions import Annotated, TypedDict
 from langgraph.graph.message import add_messages
-from langchain_core.tools import tool
 
 logging.basicConfig(
     level=logging.INFO,  
@@ -36,15 +32,55 @@ sharing_url = config["sharing_url"] if "sharing_url" in config else None
 s3_prefix = "docs"
 user_id = "langgraph"
 
+import io, os, sys, json, traceback
 import subprocess as _subprocess, pathlib as _pathlib, shutil as _shutil
 import tempfile as _tempfile, glob as _glob, datetime as _datetime
 import math as _math, re as _re, requests as _requests
+from urllib.parse import quote
+from langchain_core.tools import tool
 
 WORKING_DIR = os.path.dirname(os.path.abspath(__file__))
 ARTIFACTS_DIR = os.path.join(WORKING_DIR, "artifacts")
 
+_ARTIFACT_EXT = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx"})
+
 _mpl_runtime_ready = False
 
+def _artifact_files_mtime_snapshot() -> dict:
+    """WORKING_DIR 기준 상대 경로 -> mtime. artifacts/ 이하만 스캔."""
+    snap = {}
+    if not os.path.isdir(ARTIFACTS_DIR):
+        return snap
+    for dirpath, _, filenames in os.walk(ARTIFACTS_DIR):
+        for fn in filenames:
+            full = os.path.join(dirpath, fn)
+            try:
+                rel = os.path.relpath(full, WORKING_DIR)
+                snap[rel] = os.path.getmtime(full)
+            except OSError:
+                pass
+    return snap
+
+
+def _touched_artifact_paths(before: dict, after: dict) -> list:
+    """실행 전후 스냅샷 차이로 새로 생기거나 수정된 파일만."""
+    touched = []
+    for rel, mt in after.items():
+        if rel not in before or before[rel] != mt:
+            touched.append(rel)
+    return sorted(touched)
+
+
+def _paths_for_ui(relative_paths: list) -> list:
+    """sharing_url이 있으면 공개 URL, 없으면 Streamlit st.image용 절대 경로."""
+    out = []
+    base = sharing_url.rstrip("/") if sharing_url else ""
+    for rel in relative_paths:
+        if base:
+            out.append(f"{base}/{quote(rel)}")
+        else:
+            out.append(os.path.abspath(os.path.join(WORKING_DIR, rel)))
+    return out
 
 def _ensure_matplotlib_runtime():
     """Use non-interactive Agg backend, prefer CJK-capable fonts, silence headless/show noise."""
@@ -144,9 +180,11 @@ def execute_code(code: str) -> str:
 
     Returns:
         Captured stdout output, or error traceback if execution failed.
+        If there is a result file, return the path of the file.            
     """
     logger.info(f"###### execute_code ######")
     os.makedirs(ARTIFACTS_DIR, exist_ok=True)
+    before_files = _artifact_files_mtime_snapshot()
 
     old_cwd = os.getcwd()
     stdout_capture = io.StringIO()
@@ -173,6 +211,25 @@ def execute_code(code: str) -> str:
             result += f"\n[stderr]\n{errors}"
         if not result.strip():
             result = "Code executed successfully (no output)."
+
+        after_files = _artifact_files_mtime_snapshot()
+        touched = _touched_artifact_paths(before_files, after_files)
+        artifact_rels = [
+            r
+            for r in touched
+            if os.path.splitext(r)[1].lower() in _ARTIFACT_EXT
+        ]
+        other_rels = [r for r in touched if r not in artifact_rels]
+        if other_rels:
+            lines = "\n".join(
+                os.path.abspath(os.path.join(WORKING_DIR, r)) for r in other_rels
+            )
+            result += f"\n[artifacts]\n{lines}"
+
+        if artifact_rels:
+            payload = {"output": result.strip()}
+            payload["path"] = _paths_for_ui(artifact_rels)
+            return json.dumps(payload, ensure_ascii=False)
 
         return result
 
@@ -268,7 +325,7 @@ def upload_file_to_s3(filepath: str) -> str:
         if sharing_url:
             url = f"{sharing_url}/{url_parse.quote(filepath)}"
             return f"Upload complete: {url}"
-        return f"Upload complete: s3://{s3_bucket}/{filepath}"
+        return f"Upload complete: {chat.s3_uri_to_console_url(f"s3://{s3_bucket}/{filepath}", config.get("region", "us-west-2"))}"
 
     except Exception as e:
         return f"Upload failed: {str(e)}"
@@ -276,6 +333,7 @@ def upload_file_to_s3(filepath: str) -> str:
 def get_builtin_tools() -> list:
     """Return the list of built-in tools for the skill-aware agent."""
     return [execute_code, write_file, read_file, upload_file_to_s3, get_current_time]
+
 
 class State(TypedDict):
     messages: Annotated[list, add_messages]
@@ -289,13 +347,19 @@ async def call_model(state: State, config):
     
     image_url = state['image_url'] if 'image_url' in state else []
 
-    tools = get_builtin_tools()
+    tools = get_builtin_tools() # builtin tools
+
     cfg = config.get("configurable") or {}
     mcp_tools = cfg.get("tools")
     if not mcp_tools and isinstance(config, dict):
-        mcp_tools = config.get("tools") or []
+        mcp_tools = config.get("tools") or []  # mcp tools
     if mcp_tools:
-        tools.extend(mcp_tools)
+        tool_names = {tool.name for tool in tools} 
+        for bt in mcp_tools:
+            if bt.name not in tool_names:
+                tools.append(bt)
+            else:
+                logger.info(f"builtin_tool {bt.name} already in tools")
 
     system_prompt = cfg.get("system_prompt")
     
@@ -393,8 +457,7 @@ async def should_continue(state: State, config) -> Literal["continue", "end"]:
         return "end"
 
 def buildChatAgent(tools):
-    all_tools = list(get_builtin_tools()) + list(tools or [])
-    tool_node = ToolNode(all_tools)
+    tool_node = ToolNode(tools)
 
     workflow = StateGraph(State)
 
@@ -414,8 +477,7 @@ def buildChatAgent(tools):
     return workflow.compile() 
 
 def buildChatAgentWithHistory(tools):
-    all_tools = list(get_builtin_tools()) + list(tools or [])
-    tool_node = ToolNode(all_tools)
+    tool_node = ToolNode(tools)
 
     workflow = StateGraph(State)
 
