@@ -23,3 +23,7 @@ pip install -r requirement.txt
 ```text
 streamlit run application/app.py
 ```
+
+## 결과
+
+"contents/stock_prices.csv를 읽어서 그래프로 그리고 설명하세요."라고 입력후 결과를 확인합니다.
