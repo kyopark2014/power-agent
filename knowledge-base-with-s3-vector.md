@@ -26,3 +26,6 @@
 
 <img width="618" height="103" alt="image" src="https://github.com/user-attachments/assets/3d9aeac2-9e5b-4e62-8116-e6353945b6c2" />
 
+7. 생성이 되면 아래와 같이 생성한 [Knowledge Base overview]에서 Knowledge Base ID를 확인할 수 있습니다.
+
+<img width="166" height="55" alt="image" src="https://github.com/user-attachments/assets/46483548-db1f-45fb-bbdf-f2bac97dcc95" />
