@@ -20,9 +20,21 @@
 
 <img width="599" height="130" alt="image" src="https://github.com/user-attachments/assets/8b83272b-d709-4dbf-a77e-586c6e3a0cfb" />
 
-4. [Configure data source]에서도 기본값을 유지한 상태에서 하단의 [Next] 선택합니다. 
-   
-5. 
+4. [Configure data source]의 [S3 URI]에서 아래와 같이 생성한 Amazon S3를 선택합니다. 이후 나머지 설정은 유지한 상태에서 하단의 [Next]를 선택합니다. 
+
+<img width="329" height="82" alt="image" src="https://github.com/user-attachments/assets/aa0ebb10-3f2c-4001-818f-e68b5b25424c" />
+
+5. 아래와 같이 Embedding model로 "Titan Text Embedding V2"를 선택하고 [Apply]를 선택합니다. 
+
+<img width="804" height="284" alt="image" src="https://github.com/user-attachments/assets/b47f3e60-5c29-4ebd-a6f1-bacc678fccbb" />
+
+6. [Vector store type]로 아래와 같이 "Amazon S3 Vectors"를 선택하고, 하단의 [Next]를 선택한 다음에 [Create Knowledge Base]를 선택하여 생성합니다.
+
+<img width="618" height="103" alt="image" src="https://github.com/user-attachments/assets/3d9aeac2-9e5b-4e62-8116-e6353945b6c2" />
+
+
+  
+
 
 ### 사전 준비
 
