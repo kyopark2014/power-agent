@@ -203,7 +203,8 @@ def get_chat():
         model_id=modelId,
         client=boto3_bedrock, 
         model_kwargs=parameters,
-        region_name=utils.bedrock_region
+        region_name=utils.bedrock_region,
+        provider="anthropic"
     )
     
     return chat
