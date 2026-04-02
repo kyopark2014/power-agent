@@ -14,4 +14,5 @@ __pycache__
 *.webp
 *.svg
 *.bmp
-.md
+*.md
+*.txt
