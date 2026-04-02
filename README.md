@@ -16,7 +16,7 @@
 git clone https://github.com/kyopark2014/power-agent
 ```
 
-4. 아래 명령어로 config.json을 생성합니다.
+4. 아래 명령어로 config.json을 생성합니다. 이때 앞에서 생성한 "S3 bucket name", "Knowledge Base ID", "Tavily API Key"을 입력합니다.
 
 ```text
 python update_config.py
