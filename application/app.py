@@ -34,9 +34,6 @@ mode_descriptions = {
     "Agent (Chat)": [
         "MCP를 활용한 Agent를 이용합니다. 채팅 히스토리를 이용해 interative한 대화를 즐길 수 있습니다."
     ],
-    "QA Agent": [
-        "RAG를 이용해 얻은 정보로 Test Case를 생성합니다."
-    ],
     "이미지 분석": [
         "이미지를 선택하여 멀티모달을 이용하여 분석합니다."
     ]
