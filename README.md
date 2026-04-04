@@ -56,6 +56,13 @@ python update_config.py
 pip install -r requirements.txt
 ```
 
+8. MCP `web_fetch`(`mcp-server-fetch-typescript`, Playwright 포함)로 웹을 markdown 등으로 가져오려면 저장소 루트에서 아래 명령으로 Node 패키지를 설치합니다.
+
+```text
+npm install
+```
+
+렌더된 HTML을 가져오는 도구를 쓸 때는 최초 한 번 `npx playwright install`으로 브라우저 바이너리를 설치해야 할 수 있습니다.
 
 ### 실행
 

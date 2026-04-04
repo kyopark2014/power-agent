@@ -70,6 +70,7 @@ with st.sidebar:
             "aws documentation", 
             "trade info", 
             "weather", 
+            "web_fetch",
             "사용자 설정"
         ]
         mcp_selections = {}
