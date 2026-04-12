@@ -96,7 +96,7 @@ with st.sidebar:
             "사용자 설정"
         ]
         mcp_selections = {}
-        default_selections = ["tavily", "knowledge base", "aws documentation"]
+        default_selections = ["tavily", "knowledge base", "web_fetch"]
         
         with st.expander("MCP 옵션 선택", expanded=True):
             for option in mcp_options:

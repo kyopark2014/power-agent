@@ -1158,20 +1158,15 @@ async def create_agent(mcp_servers: list, history_mode: str="Disable") -> tuple[
         logger.error(f"Error creating MCP client or getting tools: {e}")
         logger.info(f"Falling back to builtin tools only (count: {len(tools)})")
         
+    system_prompt = None
     if skill_mode == "Enable":        
-        try:
-            skill_tools = skill.get_skill_tools()
-            logger.info(f"skill_tools count: {len(skill_tools)}")
+        tools.extend(skill.get_skill_tools())
 
-            tool_names = {tool.name for tool in tools}
-            for st in skill_tools:
-                if st.name not in tool_names:
-                    tools.append(st)
-                else:
-                    logger.info(f"skill_tool of {st.name} already in tools")
-
-        except Exception as e:
-            logger.error(f"Error loading skill tools: {e}")
+        skill_info = skill.selected_skill_info("base")
+        system_prompt = skill.build_skill_prompt(skill_info)
+        
+    else:
+        system_prompt = langgraph_agent.BASE_SYSTEM_PROMPT
 
     tool_list = [tool.name for tool in tools] if tools else []
     logger.info(f"tool_list: {tool_list}")
@@ -1186,8 +1181,7 @@ async def create_agent(mcp_servers: list, history_mode: str="Disable") -> tuple[
             "recursion_limit": 100,
             "configurable": {"thread_id": user_id},
             "tools": tools,
-            "plugin_name": "base",
-            "system_prompt": None
+            "system_prompt": system_prompt
         }
     else:
         app = langgraph_agent.buildChatAgent(tools)
@@ -1195,24 +1189,28 @@ async def create_agent(mcp_servers: list, history_mode: str="Disable") -> tuple[
             "recursion_limit": 100,
             "configurable": {"thread_id": user_id},
             "tools": tools,
-            "plugin_name": "base",
-            "system_prompt": None
+            "system_prompt": system_prompt
         }        
     
     return app, config
 
 app = config = None
 active_mcp_servers = []
+active_skills = []
 
 async def run_langgraph_agent(query, mcp_servers, history_mode, containers):
-    global index, streaming_index, active_mcp_servers, app, config
+    global index, streaming_index, app, config, active_mcp_servers, active_skills
     index = 0
 
     image_url = []
     references = []
 
-    if app is None or mcp_servers != active_mcp_servers:
+    selected_skill_info = skill.selected_skill_info("base")
+
+    if app is None or active_mcp_servers != mcp_servers or active_skills != selected_skill_info:
         active_mcp_servers = mcp_servers
+        active_skills = selected_skill_info
+
         app, config = await create_agent(mcp_servers, history_mode)
     
     if app is None:

@@ -42,7 +42,12 @@ from langchain_core.tools import tool
 WORKING_DIR = os.path.dirname(os.path.abspath(__file__))
 ARTIFACTS_DIR = os.path.join(WORKING_DIR, "artifacts")
 
-_ARTIFACT_EXT = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx"})
+_py_ver = f"{sys.version_info.major}.{sys.version_info.minor}"
+_user_bin = os.path.expanduser(f"~/Library/Python/{_py_ver}/bin")
+if os.path.isdir(_user_bin) and _user_bin not in os.environ.get("PATH", ""):
+    os.environ["PATH"] = _user_bin + os.pathsep + os.environ.get("PATH", "")
+
+ARTIFACT_EXT = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx"})
 
 _mpl_runtime_ready = False
 
@@ -61,6 +66,29 @@ def _artifact_files_mtime_snapshot() -> dict:
                 pass
     return snap
 
+def _ensure_cli_scripts_on_path() -> None:
+    """Prepend pip user script dir so CLIs (e.g. browser-use) resolve in subprocess."""
+    import site
+    import sysconfig
+
+    extra: list[str] = []
+    user_base = getattr(site, "USER_BASE", None)
+    if user_base:
+        user_bin = os.path.join(user_base, "bin")
+        if os.path.isdir(user_bin):
+            extra.append(user_bin)
+    try:
+        scripts = sysconfig.get_path("scripts")
+        if scripts and os.path.isdir(scripts):
+            extra.append(scripts)
+    except Exception:
+        pass
+    path = os.environ.get("PATH", "")
+    parts = [p for p in path.split(os.pathsep) if p]
+    for d in reversed(extra):
+        if d and d not in parts:
+            parts.insert(0, d)
+    os.environ["PATH"] = os.pathsep.join(parts)
 
 def _touched_artifact_paths(before: dict, after: dict) -> list:
     """실행 전후 스냅샷 차이로 새로 생기거나 수정된 파일만."""
@@ -190,18 +218,22 @@ def execute_code(code: str) -> str:
     stdout_capture = io.StringIO()
     stderr_capture = io.StringIO()
 
-    project_root = os.path.dirname(WORKING_DIR)
-    node_modules = os.path.join(project_root, "node_modules")
-    old_node_path = os.environ.get("NODE_PATH", "")
-    if os.path.isdir(node_modules):
-        os.environ["NODE_PATH"] = node_modules + (os.pathsep + old_node_path if old_node_path else "")
-
     try:
         os.chdir(WORKING_DIR)
         old_stdout, old_stderr = sys.stdout, sys.stderr
         sys.stdout, sys.stderr = stdout_capture, stderr_capture
 
+        _ensure_cli_scripts_on_path()
         _ensure_matplotlib_runtime()
+        
+        node_modules = os.path.join(WORKING_DIR, "node_modules")
+        if os.path.isdir(node_modules):
+            existing = os.environ.get("NODE_PATH", "")
+            if node_modules not in existing.split(os.pathsep):
+                os.environ["NODE_PATH"] = (
+                    f"{node_modules}{os.pathsep}{existing}" if existing else node_modules
+                )
+
         exec(code, _exec_globals)
 
         sys.stdout, sys.stderr = old_stdout, old_stderr
@@ -223,7 +255,7 @@ def execute_code(code: str) -> str:
         artifact_rels = [
             r
             for r in touched
-            if os.path.splitext(r)[1].lower() in _ARTIFACT_EXT
+            if os.path.splitext(r)[1].lower() in ARTIFACT_EXT
         ]
         other_rels = [r for r in touched if r not in artifact_rels]
         if other_rels:
@@ -245,8 +277,6 @@ def execute_code(code: str) -> str:
         tb = traceback.format_exc()
         logger.error(f"Code execution error: {tb}")
         return f"Error executing code:\n{tb}"
-    finally:
-        os.environ["NODE_PATH"] = old_node_path
 
 @tool
 def write_file(filepath: str, content: str = "") -> str:
@@ -347,6 +377,13 @@ class State(TypedDict):
     messages: Annotated[list, add_messages]
     image_url: list
 
+BASE_SYSTEM_PROMPT = (
+    "당신의 이름은 서연이고, 질문에 친근한 방식으로 대답하도록 설계된 대화형 AI입니다.\n"
+    "상황에 맞는 구체적인 세부 정보를 충분히 제공합니다.\n"
+    "모르는 질문을 받으면 솔직히 모른다고 말합니다.\n"
+    "한국어로 답변하세요."
+)
+
 async def call_model(state: State, config):
     logger.info(f"###### call_model ######")
 
@@ -355,27 +392,8 @@ async def call_model(state: State, config):
     
     image_url = state['image_url'] if 'image_url' in state else []
 
-    cfg = config.get("configurable") or {}
-    tools = cfg.get("tools")
-    system_prompt = cfg.get("system_prompt")
-    
-    if system_prompt:
-        system = system_prompt
-    else:
-        system = (
-            "당신의 이름은 서연이고, 질문에 친근한 방식으로 대답하도록 설계된 대화형 AI입니다."
-            "상황에 맞는 구체적인 세부 정보를 충분히 제공합니다."
-            "모르는 질문을 받으면 솔직히 모른다고 말합니다."
-            "한국어로 답변하세요."
-
-            "An agent orchestrates the following workflow:"
-            "1. Receives user input"
-            "2. Processes the input using a language model"
-            "3. Decides whether to use tools to gather information or perform actions"
-            "4. Executes those tools and receives results"
-            "5. Continues reasoning with the new information"
-            "6. Produces a final response"
-        )
+    tools = config.get("configurable", {}).get("tools")
+    system = config.get("configurable", {}).get("system_prompt")
 
     chatModel = chat.get_chat()    
     
