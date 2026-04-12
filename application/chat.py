@@ -9,9 +9,10 @@ import info
 import utils
 import langgraph_agent
 import mcp_config
+import skill
+
 from langchain_core.documents import Document
 from urllib import parse
-
 from io import BytesIO
 from PIL import Image
 from langchain_aws import ChatBedrock
@@ -88,9 +89,10 @@ models = info.get_model_info(model_name)
 model_id = models["model_id"]
 debug_mode = "Enable"
 user_id = "power"
+skill_mode = "Disable"
 
-def update(modelName, debugMode):    
-    global model_name, model_id, model_type, debug_mode, reasoning_mode
+def update(modelName, debugMode, skillMode):    
+    global model_name, model_id, model_type, debug_mode, reasoning_mode, skill_mode
     global models, user_id
 
     if model_name != modelName:
@@ -104,6 +106,10 @@ def update(modelName, debugMode):
     if debug_mode != debugMode:
         debug_mode = debugMode        
         logger.info(f"debug_mode: {debug_mode}")
+
+    if skill_mode != skillMode:
+        skill_mode = skillMode
+        logger.info(f"skill_mode: {skill_mode}")
 
 map_chain = dict() 
 checkpointers = dict() 
@@ -1123,69 +1129,95 @@ def get_tool_info(tool_name, tool_content):
 
     return content, urls, tool_references
 
+async def create_agent(mcp_servers: list, history_mode: str="Disable") -> tuple[str, list]:
+    # builtin tools
+    tools = langgraph_agent.get_builtin_tools()
+    logger.info(f"builtin_tools count: {len(tools)}")
+        
+    # mcp
+    mcp_json = mcp_config.load_selected_config(mcp_servers)
+    # logger.info(f"mcp_json: {mcp_json}")
+
+    server_params = langgraph_agent.load_multiple_mcp_server_parameters(mcp_json)
+    # logger.info(f"server_params: {server_params}")    
+
+    try:
+        client = MultiServerMCPClient(server_params)
+        logger.info(f"MCP client is initialized successfully")
+        
+        mcp_tools = await client.get_tools()        # add MCP tools
+        # logger.info(f"mcp_tools: {mcp_tools}")        
+        for tool in mcp_tools:
+            logger.info(f"mcp_tool: {tool.name}")
+            if tool.name not in tools:
+                tools.append(tool)
+            else:
+                logger.info(f"mcp_tool of {tool.name} already in tools")
+
+    except Exception as e:
+        logger.error(f"Error creating MCP client or getting tools: {e}")
+        logger.info(f"Falling back to builtin tools only (count: {len(tools)})")
+        
+    if skill_mode == "Enable":        
+        try:
+            skill_tools = skill.get_skill_tools()
+            logger.info(f"skill_tools count: {len(skill_tools)}")
+
+            tool_names = {tool.name for tool in tools}
+            for st in skill_tools:
+                if st.name not in tool_names:
+                    tools.append(st)
+                else:
+                    logger.info(f"skill_tool of {st.name} already in tools")
+
+        except Exception as e:
+            logger.error(f"Error loading skill tools: {e}")
+
+    tool_list = [tool.name for tool in tools] if tools else []
+    logger.info(f"tool_list: {tool_list}")
+
+    if not tools:
+        logger.warning("No tools available, using general conversation mode")
+        return None, None
+    
+    if history_mode == "Enable":
+        app = langgraph_agent.buildChatAgentWithHistory(tools)
+        config = {
+            "recursion_limit": 100,
+            "configurable": {"thread_id": user_id},
+            "tools": tools,
+            "plugin_name": "base",
+            "system_prompt": None
+        }
+    else:
+        app = langgraph_agent.buildChatAgent(tools)
+        config = {
+            "recursion_limit": 100,
+            "configurable": {"thread_id": user_id},
+            "tools": tools,
+            "plugin_name": "base",
+            "system_prompt": None
+        }        
+    
+    return app, config
+
+app = config = None
+active_mcp_servers = []
+
 async def run_langgraph_agent(query, mcp_servers, history_mode, containers):
-    global index, streaming_index
+    global index, streaming_index, active_mcp_servers, app, config
     index = 0
 
     image_url = []
     references = []
 
-    mcp_json = mcp_config.load_selected_config(mcp_servers)
-    logger.info(f"mcp_json: {mcp_json}")
-
-    server_params = langgraph_agent.load_multiple_mcp_server_parameters(mcp_json)
-    logger.info(f"server_params: {server_params}")    
-
-    try:
-        client = MultiServerMCPClient(server_params)
-        logger.info(f"MCP client created successfully")
-
-        tools = langgraph_agent.get_builtin_tools()        
-        mcp_tools = await client.get_tools()
-        if mcp_tools:
-            tools.extend(mcp_tools)
-        logger.info(f"get_tools() returned: {tools}")
-        
-        if tools is None:
-            logger.error("tools is None - MCP client failed to get tools")
-            tools = []
-        
-        tool_list = [tool.name for tool in tools] if tools else []
-        logger.info(f"tool_list: {tool_list}")
-        
-    except Exception as e:
-        logger.error(f"Error creating MCP client or getting tools: {e}")                        
-        tools = []
-        tool_list = []        
-
-    # If no tools available, use general conversation
-    if not tools:
-        logger.warning("No tools available, using general conversation mode")
-        result = "MCP 설정을 확인하세요."
-        if containers is not None:
-            containers['notification'][0].markdown(result)
-        return result, image_url
+    if app is None or mcp_servers != active_mcp_servers:
+        active_mcp_servers = mcp_servers
+        app, config = await create_agent(mcp_servers, history_mode)
     
-    if history_mode == "Enable":
-        app = langgraph_agent.buildChatAgentWithHistory(tools)
-        config = {
-            "recursion_limit": 50,
-            "configurable": {
-                "thread_id": user_id,
-                "tools": tools,
-                "system_prompt": None,
-            },
-        }
-    else:
-        app = langgraph_agent.buildChatAgent(tools)
-        config = {
-            "recursion_limit": 50,
-            "configurable": {
-                "thread_id": user_id,
-                "tools": tools,
-                "system_prompt": None,
-            },
-        }        
+    if app is None:
+        logger.error("Failed to create agent - app is None")
+        return "에이전트를 생성할 수 없습니다. MCP 서버 설정 또는 도구 구성을 확인해주세요.", []
     
     inputs = {
         "messages": [HumanMessage(content=query)]
@@ -1226,15 +1258,15 @@ async def run_langgraph_agent(query, mcp_servers, history_mode, containers):
                                                                     
                             if 'partial_json' in content_item:
                                 partial_json = content_item.get('partial_json', '')
-                                logger.info(f"partial_json: {partial_json}")
+                                # logger.info(f"partial_json: {partial_json}")
                                 
                                 if toolUseId not in tool_input_list:
                                     tool_input_list[toolUseId] = ""                                
                                 tool_input_list[toolUseId] += partial_json
                                 input = tool_input_list[toolUseId]
-                                logger.info(f"input: {input}")
+                                # logger.info(f"input: {input}")
 
-                                logger.info(f"tool_name: {tool_name}, input: {input}, toolUseId: {toolUseId}")
+                                # logger.info(f"tool_name: {tool_name}, input: {input}, toolUseId: {toolUseId}")
                                 update_streaming_result(containers, f"Tool: {tool_name}, Input: {input}", "info")
                         
         elif isinstance(stream[0], ToolMessage):

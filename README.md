@@ -56,7 +56,7 @@ python update_config.py
 pip install -r requirements.txt
 ```
 
-8. MCP `web_fetch`(`mcp-server-fetch-typescript`, Playwright 포함)로 웹을 markdown 등으로 가져오려면 저장소 루트에서 아래 명령으로 Node 패키지를 설치합니다.
+8. MCP `web_fetch`(`mcp-server-fetch-typescript`, Playwright 포함), Word 문서 생성(`docx` 패키지, docx-js) 등을 쓰려면 저장소 루트에서 아래 명령으로 Node 패키지를 설치합니다.
 
 ```text
 npm install

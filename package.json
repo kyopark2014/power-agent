@@ -1,8 +1,9 @@
 {
   "name": "power-agent",
   "private": true,
-  "description": "MCP web_fetch 서버(npx mcp-server-fetch-typescript)용 의존성",
+  "description": "MCP web_fetch(mcp-server-fetch-typescript) 및 Word 생성(docx-js, npm 패키지 docx)용 의존성",
   "dependencies": {
+    "docx": "^9.6.1",
     "mcp-server-fetch-typescript": "^0.1.1"
   }
 }

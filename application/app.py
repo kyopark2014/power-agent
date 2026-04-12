@@ -4,8 +4,9 @@ import json
 import mcp_config 
 import logging
 import sys
-import os
 import asyncio
+import skill
+import utils
 
 logging.basicConfig(
     level=logging.INFO,  # Default to INFO level
@@ -16,7 +17,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("streamlit")
 
-os.environ["DEV"] = "true"  # Skip user confirmation of get_user_input
+config = utils.load_config()
+sharing_url = config.get("sharing_url")
 
 # title
 st.set_page_config(page_title='Agent', page_icon=None, layout="centered", initial_sidebar_state="auto", menu_items=None)
@@ -60,6 +62,26 @@ with st.sidebar:
     
     # mcp selection    
     if mode=='Agent' or mode=='Agent (Chat)':
+        # Skill Config JSON input
+        st.subheader("⚙️ Skill Config")
+
+        skill_selections = {}
+        default_skill_selections = config.get("default_skills") or ["skill-creator", "graphify"]
+        logger.info(f"default_skill_selections: {default_skill_selections}")
+        with st.expander("Skill 옵션 선택", expanded=True):
+            available_skill_info = skill.available_skill_info("base")
+            for s in available_skill_info:
+                default_value = s["name"] in default_skill_selections
+                skill_selections[s["name"]] = st.checkbox(s["name"], key=f"skill_{s['name']}", value=default_value, help=s["description"], disabled=False)
+    
+        selected_skills = [name for name, is_selected in skill_selections.items() if is_selected]
+        logger.info(f"selected_skills: {selected_skills}")
+
+        if selected_skills != config.get("default_skills"):
+            config["default_skills"] = selected_skills
+            with open(utils.config_path, "w", encoding="utf-8") as f:
+                json.dump(config, f, ensure_ascii=False, indent=4)
+
         # MCP Config JSON input
         st.subheader("⚙️ MCP Config")
 
@@ -135,6 +157,10 @@ with st.sidebar:
         ), index=2
     )
 
+    # skill checkbox
+    select_skillMode = st.checkbox('Skill Mode', value=True)
+    skillMode = 'Enable' if select_skillMode else 'Disable'    
+
     # debug checkbox
     select_debugMode = st.checkbox('Debug Mode', value=True)
     debugMode = 'Enable' if select_debugMode else 'Disable'
@@ -145,7 +171,7 @@ with st.sidebar:
         st.subheader("🌇 이미지 업로드")
         uploaded_file = st.file_uploader("이미지 분석을 위한 파일을 선택합니다.", type=["png", "jpg", "jpeg"])
 
-    chat.update(modelName, debugMode)    
+    chat.update(modelName, debugMode, skillMode)    
 
     st.success(f"Connected to {modelName}", icon="💚")
     clear_button = st.button("대화 초기화", key="clear")

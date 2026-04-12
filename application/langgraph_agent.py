@@ -347,20 +347,8 @@ async def call_model(state: State, config):
     
     image_url = state['image_url'] if 'image_url' in state else []
 
-    tools = get_builtin_tools() # builtin tools
-
     cfg = config.get("configurable") or {}
-    mcp_tools = cfg.get("tools")
-    if not mcp_tools and isinstance(config, dict):
-        mcp_tools = config.get("tools") or []  # mcp tools
-    if mcp_tools:
-        tool_names = {tool.name for tool in tools} 
-        for bt in mcp_tools:
-            if bt.name not in tool_names:
-                tools.append(bt)
-            else:
-                logger.info(f"builtin_tool {bt.name} already in tools")
-
+    tools = cfg.get("tools")
     system_prompt = cfg.get("system_prompt")
     
     if system_prompt:
