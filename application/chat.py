@@ -88,7 +88,7 @@ model_type = "claude"
 models = info.get_model_info(model_name)
 model_id = models["model_id"]
 debug_mode = "Enable"
-user_id = "power"
+user_id = "agent"
 skill_mode = "Disable"
 
 def update(modelName, debugMode, skillMode):    
@@ -120,8 +120,11 @@ checkpointer = MemorySaver()
 memorystore = InMemoryStore()
 
 def initiate():
-    global memory_chain, checkpointer, memorystore, checkpointers, memorystores
+    global memory_chain, checkpointer, memorystore, checkpointers, memorystores, user_id
 
+    user_id = uuid.uuid4()
+
+    # general conversation memory
     if user_id in map_chain:  
         logger.info(f"memory exist. reuse it!")
         memory_chain = map_chain[user_id]
@@ -311,7 +314,10 @@ def traslation(chat, text, input_language, output_language):
 #########################################################
 def general_conversation(query):
     global memory_chain
-    initiate()  # Initialize memory_chain
+
+    if memory_chain is None:
+        initiate()  # Initialize memory_chain
+    
     llm = get_chat()
 
     system = (
@@ -1197,9 +1203,10 @@ async def create_agent(mcp_servers: list, history_mode: str="Disable") -> tuple[
 app = config = None
 active_mcp_servers = []
 active_skills = []
+current_id = None
 
 async def run_langgraph_agent(query, mcp_servers, history_mode, containers):
-    global index, streaming_index, app, config, active_mcp_servers, active_skills
+    global index, streaming_index, app, config, active_mcp_servers, active_skills, current_id
     index = 0
 
     image_url = []
@@ -1207,9 +1214,10 @@ async def run_langgraph_agent(query, mcp_servers, history_mode, containers):
 
     selected_skill_info = skill.selected_skill_info("base")
 
-    if app is None or active_mcp_servers != mcp_servers or active_skills != selected_skill_info:
+    if app is None or active_mcp_servers != mcp_servers or active_skills != selected_skill_info or current_id != user_id:
         active_mcp_servers = mcp_servers
         active_skills = selected_skill_info
+        current_id = user_id
 
         app, config = await create_agent(mcp_servers, history_mode)
     
