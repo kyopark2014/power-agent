@@ -55,7 +55,7 @@ python scripts/accept_changes.py input.docx output.docx
 
 ## Creating New Documents
 
-Generate .docx files with JavaScript, then validate. Install: 저장소 루트에서 `npm install` (의존성에 `docx` 포함). 전역 설치(`npm install -g docx`)는 권장하지 않음.
+Generate .docx files with JavaScript, then validate. Install: `npm install -g docx`
 
 ### Setup
 ```javascript
@@ -585,6 +585,6 @@ After running `comment.py` (see Step 2), add markers to document.xml. For replie
 ## Dependencies
 
 - **pandoc**: Text extraction
-- **docx**: 저장소 루트 `npm install` (new documents; `bash` 도구는 `NODE_PATH`로 로컬 `node_modules`를 사용)
+- **docx**: `npm install -g docx` (new documents)
 - **LibreOffice**: PDF conversion (auto-configured for sandboxed environments via `scripts/office/soffice.py`)
 - **Poppler**: `pdftoppm` for images

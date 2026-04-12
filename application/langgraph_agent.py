@@ -190,6 +190,12 @@ def execute_code(code: str) -> str:
     stdout_capture = io.StringIO()
     stderr_capture = io.StringIO()
 
+    project_root = os.path.dirname(WORKING_DIR)
+    node_modules = os.path.join(project_root, "node_modules")
+    old_node_path = os.environ.get("NODE_PATH", "")
+    if os.path.isdir(node_modules):
+        os.environ["NODE_PATH"] = node_modules + (os.pathsep + old_node_path if old_node_path else "")
+
     try:
         os.chdir(WORKING_DIR)
         old_stdout, old_stderr = sys.stdout, sys.stderr
@@ -239,6 +245,8 @@ def execute_code(code: str) -> str:
         tb = traceback.format_exc()
         logger.error(f"Code execution error: {tb}")
         return f"Error executing code:\n{tb}"
+    finally:
+        os.environ["NODE_PATH"] = old_node_path
 
 @tool
 def write_file(filepath: str, content: str = "") -> str:

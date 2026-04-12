@@ -16,3 +16,6 @@ __pycache__
 *.bmp
 *.md
 *.txt
+*.js
+*.json
+

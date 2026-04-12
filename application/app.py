@@ -154,7 +154,7 @@ with st.sidebar:
             "Claude 4.5 Opus",  
             "Claude 4 Opus", 
             "Claude 4 Sonnet"
-        ), index=2
+        ), index=0
     )
 
     # skill checkbox

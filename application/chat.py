@@ -1248,7 +1248,7 @@ async def run_langgraph_agent(query, mcp_servers, history_mode, containers):
                             update_streaming_result(containers, result, "markdown")
 
                         elif content_item.get('type') == 'tool_use':
-                            logger.info(f"content_item: {content_item}")      
+                            # logger.info(f"content_item: {content_item}")      
                             if 'id' in content_item and 'name' in content_item:
                                 toolUseId = content_item.get('id', '')
                                 tool_name = content_item.get('name', '')
