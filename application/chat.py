@@ -833,34 +833,22 @@ def extract_thinking_tag(response, st):
 
     return msg
 
-streaming_index = None
-index = 0
 def add_notification(containers, message):
-    global index
-
-    if index == streaming_index:
-        index += 1
-
     if containers is not None:
-        containers['notification'][index].info(message)
-    index += 1
+        containers['queue'].notify(message)
 
-def update_streaming_result(containers, message, type):
-    global streaming_index
-    streaming_index = index
-
+def update_streaming_result(containers, message, type="markdown"):
     if containers is not None:
         if type == "markdown":
-            containers['notification'][streaming_index].markdown(message)
+            containers['queue'].stream(message)
         elif type == "info":
-            containers['notification'][streaming_index].info(message)
-def update_tool_notification(containers, tool_index, message):
-    if containers is not None:
-        containers['notification'][tool_index].info(message)
+            containers['queue'].notify(message)
 
-tool_info_list = dict()
+def update_final_result(containers, message):
+    if containers is not None:
+        containers['queue'].result(message)
+
 tool_input_list = dict()
-tool_name_list = dict()
 
 sharing_url = config["sharing_url"] if "sharing_url" in config else None
 s3_prefix = "docs"
@@ -1208,8 +1196,11 @@ active_skills = []
 current_id = None
 
 async def run_langgraph_agent(query, mcp_servers, history_mode, containers):
-    global index, streaming_index, app, config, active_mcp_servers, active_skills, current_id
-    index = 0
+    global app, config, active_mcp_servers, active_skills, current_id
+
+    queue = containers['queue'] if containers else None
+    if queue:
+        queue.reset()
 
     artifacts = []
     references = []
@@ -1261,21 +1252,19 @@ async def run_langgraph_agent(query, mcp_servers, history_mode, containers):
                                 toolUseId = content_item.get('id', '')
                                 tool_name = content_item.get('name', '')
                                 logger.info(f"tool_name: {tool_name}, toolUseId: {toolUseId}")
-                                streaming_index = index
-                                index += 1
+                                if queue:
+                                    queue.register_tool(toolUseId, tool_name)
                                                                     
                             if 'partial_json' in content_item:
                                 partial_json = content_item.get('partial_json', '')
-                                # logger.info(f"partial_json: {partial_json}")
                                 
                                 if toolUseId not in tool_input_list:
                                     tool_input_list[toolUseId] = ""                                
                                 tool_input_list[toolUseId] += partial_json
                                 input = tool_input_list[toolUseId]
-                                # logger.info(f"input: {input}")
 
-                                # logger.info(f"tool_name: {tool_name}, input: {input}, toolUseId: {toolUseId}")
-                                update_streaming_result(containers, f"Tool: {tool_name}, Input: {input}", "info")
+                                if queue:
+                                    queue.tool_update(toolUseId, f"Tool: {tool_name}, Input: {input}")
                         
         elif isinstance(stream[0], ToolMessage):
             message = stream[0]
@@ -1311,7 +1300,6 @@ async def run_langgraph_agent(query, mcp_servers, history_mode, containers):
             ref += f"{i+1}. [{reference['title']}]({reference['url']}), {page_content}...\n"    
         result += ref
     
-    if containers is not None:
-        containers['notification'][index].markdown(result)
-    
+    update_final_result(containers, result)
+
     return result, artifacts
