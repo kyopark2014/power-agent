@@ -31,7 +31,6 @@ logger = logging.getLogger("langgraph_agent")
 config = utils.load_config()
 sharing_url = config["sharing_url"] if "sharing_url" in config else None
 s3_prefix = "docs"
-user_id = "langgraph"
 
 import io, os, sys, json, traceback
 import subprocess as _subprocess, pathlib as _pathlib, shutil as _shutil
@@ -53,7 +52,7 @@ ARTIFACT_EXT = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bm
 _mpl_runtime_ready = False
 
 def _artifact_files_mtime_snapshot() -> dict:
-    """WORKING_DIR 기준 상대 경로 -> mtime. artifacts/ 이하만 스캔."""
+    """Return a dict of relative path -> mtime for files under artifacts/."""
     snap = {}
     if not os.path.isdir(ARTIFACTS_DIR):
         return snap
@@ -92,7 +91,7 @@ def _ensure_cli_scripts_on_path() -> None:
     os.environ["PATH"] = os.pathsep.join(parts)
 
 def _touched_artifact_paths(before: dict, after: dict) -> list:
-    """실행 전후 스냅샷 차이로 새로 생기거나 수정된 파일만."""
+    """Return files that were newly created or modified between two snapshots."""
     touched = []
     for rel, mt in after.items():
         if rel not in before or before[rel] != mt:
@@ -101,7 +100,7 @@ def _touched_artifact_paths(before: dict, after: dict) -> list:
 
 
 def _paths_for_ui(relative_paths: list) -> list:
-    """sharing_url이 있으면 공개 URL, 없으면 Streamlit st.image용 절대 경로."""
+    """Return public URLs if sharing_url is set, otherwise absolute paths for Streamlit."""
     out = []
     base = sharing_url.rstrip("/") if sharing_url else ""
     for rel in relative_paths:
