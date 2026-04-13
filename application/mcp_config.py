@@ -38,6 +38,8 @@ def load_config(mcp_type):
         mcp_type = "trade_info"
     elif mcp_type == "weather":
         mcp_type = "korea_weather"
+    elif mcp_type == "image generation":
+        mcp_type = "image_generation"
     
     if mcp_type == "tavily":
         return {
@@ -105,6 +107,19 @@ def load_config(mcp_type):
                 }
             }
         }
+    
+    elif mcp_type == "image_generation":
+        return {
+            "mcpServers": {
+                "imageGeneration": {
+                    "command": "python",
+                    "args": [
+                        f"{workingDir}/mcp_server_image_generation.py"
+                    ]
+                }
+            }
+        }    
+    
     
     elif mcp_type == "사용자 설정":
         return mcp_user_config

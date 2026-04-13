@@ -4,6 +4,7 @@ import traceback
 import chat
 import utils
 import sys
+import subprocess
 
 from langgraph.prebuilt import ToolNode
 from typing import Literal
@@ -368,14 +369,36 @@ def upload_file_to_s3(filepath: str) -> str:
     except Exception as e:
         return f"Upload failed: {str(e)}"
 
+@tool
+def bash(command: str) -> str:
+    """Execute a bash command and return the result"""
+    logger.info(f"###### bash: {command} ######")
+    _ensure_cli_scripts_on_path()
+    result = subprocess.run(
+        command, shell=True, capture_output=True, text=True,
+        cwd=WORKING_DIR, timeout=300,
+        env=os.environ,
+    )
+    parts = []
+    if result.stdout:
+        parts.append(f"STDOUT:\n{result.stdout}")
+    if result.stderr:
+        parts.append(f"STDERR:\n{result.stderr}")
+    if result.returncode != 0:
+        parts.append(f"Return code: {result.returncode}")
+    return "\n".join(parts) if parts else "(no output)"
+
 def get_builtin_tools() -> list:
     """Return the list of built-in tools for the skill-aware agent."""
-    return [execute_code, write_file, read_file, upload_file_to_s3, get_current_time]
 
+    if config.get("sharing_url"):
+        return [execute_code, write_file, read_file, bash, upload_file_to_s3, get_current_time]
+    else:
+        return [execute_code, write_file, read_file, bash, get_current_time]
 
 class State(TypedDict):
     messages: Annotated[list, add_messages]
-    image_url: list
+    artifacts: list
 
 BASE_SYSTEM_PROMPT = (
     "당신의 이름은 서연이고, 질문에 친근한 방식으로 대답하도록 설계된 대화형 AI입니다.\n"
@@ -390,7 +413,7 @@ async def call_model(state: State, config):
     last_message = state['messages'][-1]
     logger.info(f"last message: {last_message}")
     
-    image_url = state['image_url'] if 'image_url' in state else []
+    artifacts = state['artifacts'] if 'artifacts' in state else []
 
     tools = config.get("configurable", {}).get("tools")
     system = config.get("configurable", {}).get("system_prompt")
@@ -446,7 +469,7 @@ async def call_model(state: State, config):
         err_msg = traceback.format_exc()
         logger.info(f"error message: {err_msg}")
 
-    return {"messages": [response], "image_url": image_url}
+    return {"messages": [response], "artifacts": artifacts}
 
 async def should_continue(state: State, config) -> Literal["continue", "end"]:
     logger.info(f"###### should_continue ######")

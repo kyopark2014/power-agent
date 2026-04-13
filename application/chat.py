@@ -258,8 +258,10 @@ def upload_to_s3(file_bytes, file_name):
         )
         logger.info(f"upload response: {response}")
 
-        #url = f"https://{s3_bucket}.s3.amazonaws.com/{s3_key}"
-        url = path+'/'+s3_image_prefix+'/'+parse.quote(file_name)
+        if path:
+            url = path+'/'+s3_image_prefix+'/'+parse.quote(file_name)
+        else:
+            url = f"https://{s3_bucket}.s3.amazonaws.com/{s3_key}"
         return url
     
     except Exception as e:
@@ -1209,14 +1211,14 @@ async def run_langgraph_agent(query, mcp_servers, history_mode, containers):
     global index, streaming_index, app, config, active_mcp_servers, active_skills, current_id
     index = 0
 
-    image_url = []
+    artifacts = []
     references = []
 
-    selected_skill_info = skill.selected_skill_info("base")
+    skill_info = skill.selected_skill_info("base")
 
-    if app is None or active_mcp_servers != mcp_servers or active_skills != selected_skill_info or current_id != user_id:
+    if app is None or active_mcp_servers != mcp_servers or active_skills != skill_info or current_id != user_id:
         active_mcp_servers = mcp_servers
-        active_skills = selected_skill_info
+        active_skills = skill_info
         current_id = user_id
 
         app, config = await create_agent(mcp_servers, history_mode)
@@ -1292,7 +1294,7 @@ async def run_langgraph_agent(query, mcp_servers, history_mode, containers):
                 logger.info(f"refs: {refs}")
             if urls:
                 for url in urls:
-                    image_url.append(url)
+                    artifacts.append(url)
                 logger.info(f"urls: {urls}")
 
             if content:
@@ -1312,4 +1314,4 @@ async def run_langgraph_agent(query, mcp_servers, history_mode, containers):
     if containers is not None:
         containers['notification'][index].markdown(result)
     
-    return result, image_url
+    return result, artifacts
