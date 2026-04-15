@@ -330,6 +330,8 @@ streamlit run application/app.py
 
 <img width="700" alt="image" src="https://github.com/user-attachments/assets/f78ae2cd-dd5d-435a-b774-2c19160d10a7" />
 
-왼쪽 메뉴에서 "ppt skill을 선택하고, "aws document" MCP를 선택한 후에 "AWS에서 agent를 serving하기 위한 서비스와 architecture에 대해 설명한후 ppt로 작성하세요."라고 입력하고 결과를 기다립니다. 
+왼쪽 메뉴에서 "ppt skill을 선택하고, "aws document" MCP를 선택한 후에 "AWS에서 agent를 serving하기 위한 서비스와 architecture에 대해 설명한후 ppt로 작성하세요."라고 입력하고 결과를 기다리면 아래와 같이 PPT를 생성할 수 있습니다.
+
+<img width="700" alt="image" src="https://github.com/user-attachments/assets/dab8e32b-4052-4fa6-9abb-c8bd511b473c" />
 
 
