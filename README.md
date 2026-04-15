@@ -96,7 +96,54 @@ async for stream in app.astream(inputs, config, stream_mode="messages"):
             for url in urls:
                 artifacts.append(url)
     return result, artifacts
-```    
+```
+
+Agent가 사용하는 모델은 [chat.py](./application/chat.py)에서 아래와 같이 설정합니다. PDF/PPT/Doc와 같은 문서 파일을 생성할 때에는 응답까지 지연이 클수 있으므로 read_timeout을 충분히 크게 주어야 하며, 파일에 충분한 내용을 포함하기 위하여 max output token도 조정합니다. 
+
+```python
+def get_chat():
+    modelId = models['model_id']
+    maxOutputTokens = get_max_output_tokens(modelId)
+    STOP_SEQUENCE = "\n\nHuman:"                           
+    boto3_bedrock = boto3.client(
+        service_name='bedrock-runtime',
+        region_name=bedrock_region,
+        config=Config(
+            retries = {
+                'max_attempts': 30
+            },
+            read_timeout=300
+        )
+    )
+
+    parameters = {
+        "max_tokens":maxOutputTokens,     
+        "temperature":0.1,
+        "top_k":250,
+        "stop_sequences": [STOP_SEQUENCE]
+    }
+
+    chat = ChatBedrock(
+        model_id=modelId,
+        client=boto3_bedrock, 
+        model_kwargs=parameters,
+        region_name=utils.bedrock_region,
+        provider="anthropic"
+    )    
+    return chat
+
+def get_max_output_tokens(model_id: str = "") -> int:
+    """Return the max output tokens based on the model ID."""
+    if "claude-opus-4-6" in model_id:
+        return 128000
+    if "claude-opus-4-5" in model_id:
+        return 64000
+    if "claude-opus-4" in model_id or "claude-4-opus" in model_id:
+        return 32000
+    if "claude-sonnet-4" in model_id or "claude-4-sonnet" in model_id or "claude-haiku-4" in model_id:
+        return 64000
+    return 8192
+```
 
 ## MCP 구현
 
@@ -278,9 +325,11 @@ streamlit run application/app.py
 
 이어서 "결과를 Word 파일로 정리해주세요."라고 하면 Word 파일로 저장할 수 있습니다. 이때의 결과의 예는 [stock_analysis_report.docx](./application/contents/stock_analysis_report.docx)입니다.
 
+
 "knowledge base로 보일러 에러 코드에 대해 조사하세요."라고 입력하면, Knowledge Base에 저장된 문서를 조회하여 답변할 수 있습니다.
 
 <img width="700" alt="image" src="https://github.com/user-attachments/assets/f78ae2cd-dd5d-435a-b774-2c19160d10a7" />
 
+왼쪽 메뉴에서 "ppt skill을 선택하고, "aws document" MCP를 선택한 후에 "AWS에서 agent를 serving하기 위한 서비스와 architecture에 대해 설명한후 ppt로 작성하세요."라고 입력하고 결과를 기다립니다. 
 
 
