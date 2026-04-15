@@ -131,7 +131,11 @@ def get_chat():
         provider="anthropic"
     )    
     return chat
+```
 
+Model 별로 최대 output token을 리턴합니다.
+
+```python
 def get_max_output_tokens(model_id: str = "") -> int:
     """Return the max output tokens based on the model ID."""
     if "claude-opus-4-6" in model_id:
