@@ -278,5 +278,9 @@ streamlit run application/app.py
 
 이어서 "결과를 Word 파일로 정리해주세요."라고 하면 Word 파일로 저장할 수 있습니다. 이때의 결과의 예는 [stock_analysis_report.docx](./application/contents/stock_analysis_report.docx)입니다.
 
+"knowledge base로 보일러 에러 코드에 대해 조사하세요."라고 입력하면, Knowledge Base에 저장된 문서를 조회하여 답변할 수 있습니다.
+
+<img width="728" height="740" alt="image" src="https://github.com/user-attachments/assets/f78ae2cd-dd5d-435a-b774-2c19160d10a7" />
+
 
 
