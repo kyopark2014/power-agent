@@ -227,9 +227,7 @@ def build_skill_prompt(skill_info: list) -> str:
     )
 
     skills_xml = get_skills_xml(skill_info)
-    if skills_xml:
-        return f"{SKILL_SYSTEM_PROMPT}\n{path_info}\n{skills_xml}\n{SKILL_USAGE_GUIDE}"
-    return f"{SKILL_SYSTEM_PROMPT}\n{path_info}"
+    return f"{SKILL_SYSTEM_PROMPT}\n{path_info}\n{skills_xml}\n{SKILL_USAGE_GUIDE}"
 ```
 
 skills_xml은 아래와 같이 SKILL.md의 name, description 정보를 포함하고, agent가 적절한 skill을 선택할 수 있는 정보를 제공합니다.
