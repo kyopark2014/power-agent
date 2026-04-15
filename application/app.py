@@ -155,9 +155,7 @@ with st.sidebar:
             "Claude 4.6 Opus",
             "Claude 4.5 Haiku",
             "Claude 4.5 Sonnet",
-            "Claude 4.5 Opus",  
-            "Claude 4 Opus", 
-            "Claude 4 Sonnet"
+            "Claude 4.5 Opus"
         ), index=0
     )
 
