@@ -2,11 +2,126 @@
 
 여기서는 전력 거래 솔루션을 위한 Agent의 개발 및 테스트를 위한 주요 기술에 대해 설명합니다.
 
-## MCP 활용
+## Agent 구현
+
+[app.py](./application/app.py)은 streamlit 환경에서 agent를 실행할 수 있게 합니다. 아래와 같이 [chat.py](./application/chat.py)의 run_langgraph_agent()을 실행합니다. 사용자가 선택한 MCP server의 리스트는 mcp_servers를 제공하고 chat history를 이용시 history_mode을 enable로 설정합니다. containers는 streamlit UI를 위헤 전달됩니다.
+
+```python
+response, artifacts = asyncio.run(chat.run_langgraph_agent(
+    query=prompt, 
+    mcp_servers=mcp_servers, 
+    history_mode=history_mode, 
+    containers=containers))
+```
+
+Agent의 생성은 아래와 같이 진행합니다. 여기서 get_builtin_tools()은 agent 동작에 필요한 tool을 등록합니다. load_selected_config()을 이용해 mcp.json을 생성한 후에 server param을 생성하여 [MultiServerMCPClient](https://reference.langchain.com/python/langchain-mcp-adapters/client/MultiServerMCPClient)으로 client를 생성합니다. get_tools()을 이용하여 tool 정보를 가져와서 추가합니다. Skill에 필요한 tool은 get_skill_tools()로 추가하고, skill을 위한 prompt는 build_skill_prompt()을 이용해 가져옵니다.
+
+```python
+async def create_agent(mcp_servers: list, history_mode: str="Disable") -> tuple[str, list]:
+    tools = langgraph_agent.get_builtin_tools()        
+    mcp_json = mcp_config.load_selected_config(mcp_servers)
+
+    server_params = langgraph_agent.load_multiple_mcp_server_parameters(mcp_json)
+    client = MultiServerMCPClient(server_params)    
+    mcp_tools = await client.get_tools()
+    tools.append(mcp_tools) 
+
+    tools.extend(skill.get_skill_tools())
+    skill_info = skill.selected_skill_info("base")
+    system_prompt = skill.build_skill_prompt(skill_info)
+        
+    app = langgraph_agent.buildChatAgentWithHistory(tools)
+    config = {
+        "recursion_limit": 100,
+        "configurable": {"thread_id": user_id},
+        "tools": tools,
+        "system_prompt": system_prompt
+    }    
+    return app, config
+```
+
+아래와 같이 agent를 생성하고 stream()으로 실행합니다. 텍스트는 result로 전달되고 tool이 생성하는 이미지등은 artifacts로 전달됩니다.
+
+```python
+app, config = await create_agent(mcp_servers, history_mode)
+
+async for stream in app.astream(inputs, config, stream_mode="messages"):
+    if isinstance(stream[0], AIMessageChunk):
+        message = stream[0]    
+        input = {}        
+        if isinstance(message.content, list):
+            for content_item in message.content:
+                if isinstance(content_item, dict):
+                    if content_item.get('type') == 'text':
+                        text_content = content_item.get('text', '')
+                        
+                        if tool_used:
+                            result = text_content
+                            tool_used = False
+                        else:
+                            result += text_content
+                        update_streaming_result(containers, result, "markdown")
+
+                    elif content_item.get('type') == 'tool_use':
+                        if 'id' in content_item and 'name' in content_item:
+                            toolUseId = content_item.get('id', '')
+                            tool_name = content_item.get('name', '')
+                            if queue:
+                                queue.register_tool(toolUseId, tool_name)
+                                                                
+                        if 'partial_json' in content_item:
+                            partial_json = content_item.get('partial_json', '')
+                            
+                            if toolUseId not in tool_input_list:
+                                tool_input_list[toolUseId] = ""                                
+                            tool_input_list[toolUseId] += partial_json
+                            input = tool_input_list[toolUseId]
+
+                            if queue:
+                                queue.tool_update(toolUseId, f"Tool: {tool_name}, Input: {input}")
+                    
+    elif isinstance(stream[0], ToolMessage):
+        message = stream[0]
+        tool_name = message.name
+        toolResult = message.content
+        toolUseId = message.tool_call_id
+        add_notification(containers, f"Tool Result: {toolResult}")
+        tool_used = True
+        
+        content, urls, refs = get_tool_info(tool_name, toolResult)
+        if refs:
+            for r in refs:
+                references.append(r)
+        if urls:
+            for url in urls:
+                artifacts.append(url)
+    return result, artifacts
+```    
+
+## MCP 구현
+
+[mcp_server_retrieve.py](./application/mcp_server_retrieve.py)와 같이 MCP server를 구현합니다. 
+
+```python
+from mcp.server.fastmcp import FastMCP
+
+mcp = FastMCP(name = "mcp-retrieve")
+
+@mcp.tool()
+def retrieve(keyword: str) -> str:
+    """
+    Query the keyword using RAG based on the knowledge base.
+    keyword: the keyword to query
+    return: the result of query
+    """
+    return mcp_retrieve.retrieve(keyword)
+
+if __name__ =="__main__":
+    mcp.run(transport="stdio")
+```
 
 
-
-## SKILL 활용
+## SKILL 구현
 
 
 ## 설치
@@ -33,7 +148,7 @@ aws configure
 curl -fsSL https://cli.kiro.dev/install | bash
 ```
 
-Windows에서는 아래와 같이 설치합니다. 필요한 정보는 [Kiro-CLI](https://kiro.dev/cli/)를 참조합니다.
+Windows에서는 아래와 같이 설치합니다. 상세한 정보는 [Kiro-CLI](https://kiro.dev/cli/)를 참조합니다.
 
 ```bash
 irm 'https://cli.kiro.dev/install.ps1' | iex
