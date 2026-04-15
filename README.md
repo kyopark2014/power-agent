@@ -123,6 +123,66 @@ if __name__ =="__main__":
 
 ## SKILL 구현
 
+Skill 정보는 system prompt에 포함되어 제공됩니다. 아래와 같이 SKILL_SYSTEM_PROMPT은 skill 사용에 대한 기본 prompt를 제공하고, SKILL_USAGE_GUIDE은 skill 사용을 위한 가이드를 포함합니다.
+
+```python
+SKILL_SYSTEM_PROMPT = (
+    "당신의 이름은 서연이고, 질문에 친근한 방식으로 대답하도록 설계된 대화형 AI입니다.\n"
+    "상황에 맞는 구체적인 세부 정보를 충분히 제공합니다.\n"
+    "모르는 질문을 받으면 솔직히 모른다고 말합니다.\n"
+    "한국어로 답변하세요.\n\n"
+    "## Agent Workflow\n"
+    "1. 사용자 입력을 받는다\n"
+    "2. 요청에 맞는 skill이 있으면 get_skill_instructions 도구로 상세 지침을 로드한다\n"
+    "3. skill 지침에 따라 execute_code, write_file 등의 도구를 사용하여 작업을 수행한다\n"
+    "4. 결과 파일이 있으면 upload_file_to_s3로 업로드하여 URL을 제공한다\n"
+    "5. 최종 결과를 사용자에게 전달한다\n\n"
+)
+
+SKILL_USAGE_GUIDE = (
+    "\n## Skill 사용 가이드\n"
+    "위의 <available_skills>에 나열된 skill이 사용자의 요청과 관련될 때:\n"
+    "1. 먼저 get_skill_instructions 도구로 해당 skill의 상세 지침을 로드하세요.\n"
+    "2. **중요: 지침을 읽기 전에 어떤 작업을 할지 단정짓지 마세요.** "
+    "skill의 description에 서브커맨드(query, path, explain 등)가 있다면, "
+    "사용자 명령의 서브커맨드를 정확히 파악한 후 그에 맞는 동작을 설명하세요.\n"
+    "3. 지침에 포함된 코드 패턴을 execute_code 도구로 실행하세요.\n"
+    "4. skill 지침이 없는 일반 질문은 직접 답변하세요.\n"
+)
+```
+
+Agent를 생성할 때에 build_skill_prompt()을 이용해 skill 정보를 가져옵니다. build_skill_prompt()에서는 아래와 같이 SKILL_SYSTEM_PROMPT, path_info, skills_xml, SKILL_USAGE_GUIDE으로 system prompt를 생성합니다. path_info는 skill.md의 위치와 skill이 생성할 artifact의 위치를 지정하고, skills_xml은 skill에 대한 정보를 제공합니다.
+
+```python
+def build_skill_prompt(skill_info: list) -> str:
+    """Build skill-related prompt: path info, available skills XML, and usage guide."""
+        
+    path_info = (
+        f"## Paths (use absolute paths for write_file, read_file)\n"
+        f"- WORKING_DIR: {WORKING_DIR}\n"
+        f"- ARTIFACTS_DIR: {ARTIFACTS_DIR}\n"
+        f"Example: write_file(filepath='{os.path.join(ARTIFACTS_DIR, 'report.drawio')}', content='...')\n\n"
+    )
+
+    skills_xml = get_skills_xml(skill_info)
+    if skills_xml:
+        return f"{SKILL_SYSTEM_PROMPT}\n{path_info}\n{skills_xml}\n{SKILL_USAGE_GUIDE}"
+    return f"{SKILL_SYSTEM_PROMPT}\n{path_info}"
+```
+
+skills_xml은 아래와 같이 SKILL.md의 name, description 정보를 포함하고, agent가 적절한 skill을 선택할 수 있는 정보를 제공합니다.
+
+```python
+def get_skills_xml(skill_info: list) -> str:
+    lines = ["<available_skills>"]
+    for s in skill_info:
+        lines.append("  <skill>")
+        lines.append(f"    <name>{s['name']}</name>")
+        lines.append(f"    <description>{s['description']}</description>")
+        lines.append("  </skill>")
+    lines.append("</available_skills>")
+    return "\n".join(lines)
+```
 
 ## 설치
 
