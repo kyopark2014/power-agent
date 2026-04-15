@@ -123,6 +123,17 @@ if __name__ =="__main__":
 
 ## SKILL 구현
 
+[Agent Skill Specification](https://agentskills.io/specification)와 같이 skill은 SKILL.md에 instruction을 정의하고, scripts를 이용해 구동됩니다. 이때 assets나 references를 같이 활용할 수 있습니다.
+
+```bash
+skill-name/
+├── SKILL.md          # Required: metadata + instructions
+├── scripts/          # Optional: executable code
+├── references/       # Optional: documentation
+├── assets/           # Optional: templates, resources
+└── ...               # Any additional files or directories
+```
+
 Skill 정보는 system prompt에 포함되어 제공됩니다. 아래와 같이 SKILL_SYSTEM_PROMPT은 skill 사용에 대한 기본 prompt를 제공하고, SKILL_USAGE_GUIDE은 skill 사용을 위한 가이드를 포함합니다.
 
 ```python
