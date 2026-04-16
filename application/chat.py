@@ -840,20 +840,20 @@ def extract_thinking_tag(response, st):
 
     return msg
 
-def add_notification(containers, message):
-    if containers is not None:
-        containers['queue'].notify(message)
+def add_notification(notification_queue, message):
+    if notification_queue is not None:
+        notification_queue.notify(message)
 
-def update_streaming_result(containers, message, type="markdown"):
-    if containers is not None:
+def update_streaming_result(notification_queue, message, type="markdown"):
+    if notification_queue is not None:
         if type == "markdown":
-            containers['queue'].stream(message)
+            notification_queue.stream(message)
         elif type == "info":
-            containers['queue'].notify(message)
+            notification_queue.notify(message)
 
-def update_final_result(containers, message):
-    if containers is not None:
-        containers['queue'].result(message)
+def update_final_result(notification_queue, message):
+    if notification_queue is not None:
+        notification_queue.result(message)
 
 tool_input_list = dict()
 
@@ -1202,10 +1202,10 @@ active_mcp_servers = []
 active_skills = []
 current_id = None
 
-async def run_langgraph_agent(query, mcp_servers, history_mode, containers):
+async def run_langgraph_agent(query, mcp_servers, history_mode, notification_queue):
     global app, config, active_mcp_servers, active_skills, current_id
 
-    queue = containers['queue'] if containers else None
+    queue = notification_queue if notification_queue else None
     if queue:
         queue.reset()
 
@@ -1251,7 +1251,8 @@ async def run_langgraph_agent(query, mcp_servers, history_mode, containers):
                                 result += text_content
                                 
                             # logger.info(f"result: {result}")                
-                            update_streaming_result(containers, result, "markdown")
+                            if debug_mode == "Enable":
+                                update_streaming_result(notification_queue, result, "markdown")
 
                         elif content_item.get('type') == 'tool_use':
                             # logger.info(f"content_item: {content_item}")      
@@ -1280,7 +1281,8 @@ async def run_langgraph_agent(query, mcp_servers, history_mode, containers):
             toolResult = message.content
             toolUseId = message.tool_call_id
             logger.info(f"toolResult: {toolResult}, toolUseId: {toolUseId}")
-            add_notification(containers, f"Tool Result: {toolResult}")
+            if debug_mode == "Enable":
+                add_notification(notification_queue, f"Tool Result: {toolResult}")
             tool_used = True
             
             content, urls, refs = get_tool_info(tool_name, toolResult)
@@ -1307,6 +1309,7 @@ async def run_langgraph_agent(query, mcp_servers, history_mode, containers):
             ref += f"{i+1}. [{reference['title']}]({reference['url']}), {page_content}...\n"    
         result += ref
     
-    update_final_result(containers, result)
+    if notification_queue is not None and debug_mode == "Enable":
+        update_final_result(notification_queue, result)
 
     return result, artifacts

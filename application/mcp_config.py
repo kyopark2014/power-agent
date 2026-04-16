@@ -63,7 +63,7 @@ def load_config(mcp_type):
             }
         }
         
-    elif mcp_type == "kb_retriever":
+    elif mcp_type == "kb-retriever":
         return {
             "mcpServers": {
                 "kb-retriever": {
