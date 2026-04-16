@@ -10,6 +10,7 @@ import os
 import asyncio
 import skill
 import utils
+import langgraph_agent
 from pathlib import Path
 from notification_queue import NotificationQueue
 
@@ -374,6 +375,16 @@ if prompt := st.chat_input("메시지를 입력하세요."):
             })
 
             _artifact_image_ext = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp"})
+
+            def _artifact_rel_display(path: str) -> str:
+                try:
+                    return os.path.relpath(path, langgraph_agent.WORKING_DIR).replace("\\", "/")
+                except Exception:
+                    return Path(path).name
+
+            if artifacts:
+                st.subheader("파일 받기")
+
             for i, url in enumerate(artifacts):
                 logger.info(f"url: {url}")
                 file_name = url.split("/")[-1].split("?")[0]
@@ -385,7 +396,7 @@ if prompt := st.chat_input("메시지를 입력하세요."):
                         st.image(url, caption=file_name, use_container_width=True)
                     except Exception as e:
                         logger.info(f"st.image failed: {e}")
-                        st.markdown(f"- [{file_name}]({Path(url).as_uri()})")
+                        st.caption(f"`{_artifact_rel_display(url)}`")
                 elif url.startswith(("http://", "https://")):
                     st.markdown(f"- [{file_name}]({url})")
                 elif os.path.isfile(url):
@@ -397,7 +408,7 @@ if prompt := st.chat_input("메시지를 입력하세요."):
                             key=f"artifact_dl_{i}_{hash(url) & 0xFFFFFFFF}",
                         )
                 else:
-                    st.markdown(f"- [{file_name}]({Path(url).as_uri()})")
+                    st.caption(f"`{_artifact_rel_display(url)}` (파일을 찾을 수 없습니다)")
         
         elif mode == "이미지 분석":
             if file_bytes is None:

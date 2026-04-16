@@ -10,6 +10,12 @@ license: Proprietary. LICENSE.txt has complete terms
 
 A .docx file is a ZIP archive containing XML files.
 
+### 산출물 확장자 (필수)
+
+- 사용자에게 넘기는 **Word 보고서·문서 파일은 반드시 `.docx`** 로 저장하세요. 경로 예: `artifacts/보고서제목.docx`.
+- **`.js` 파일은 보고서 본문이 아닙니다.** npm `docx` 예제 코드를 쓸 때도, 실행 후 **최종 파일은 `.docx`** 여야 합니다. 스크립트만 `artifacts/foo.js`로 저장하고 끝내지 마세요.
+- `execute_code`에서는 가능하면 **Python `python-docx`** 로 `artifacts/...docx` 를 직접 생성하는 편이 안전합니다 (Node/JS 실행 환경 의존 감소).
+
 ## Quick Reference
 
 | Task | Approach |

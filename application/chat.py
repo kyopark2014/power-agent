@@ -860,6 +860,24 @@ tool_input_list = dict()
 sharing_url = config["sharing_url"] if "sharing_url" in config else None
 
 
+def _urls_from_file_saved_message(tool_content) -> list:
+    """Legacy/plain tool text: 'File saved: path' -> absolute paths for download UI."""
+    text = tool_content
+    if isinstance(tool_content, dict):
+        text = tool_content.get("output", "") or ""
+    if not isinstance(text, str) or "File saved:" not in text:
+        return []
+    tail = text.split("File saved:", 1)[1].strip()
+    if not tail:
+        return []
+    line = tail.splitlines()[0].strip()
+    full = line if os.path.isabs(line) else os.path.join(langgraph_agent.WORKING_DIR, line)
+    full = os.path.normpath(full)
+    if os.path.isfile(full):
+        return [full]
+    return []
+
+
 def _parse_execute_code_artifact_paths(tool_content: str) -> list:
     """Parse absolute paths from execute_code output after an [artifacts] block."""
     if not isinstance(tool_content, str) or "[artifacts]" not in tool_content:
@@ -875,7 +893,7 @@ def _parse_execute_code_artifact_paths(tool_content: str) -> list:
 
 
 def _format_artifact_links_markdown(artifact_urls: list) -> str:
-    """Append clickable markdown for local paths (file://) or http(s) URLs."""
+    """Append artifact list for the reply. Local files: relative path only (no file:// links)."""
     from pathlib import Path
 
     if not artifact_urls:
@@ -889,9 +907,11 @@ def _format_artifact_links_markdown(artifact_urls: list) -> str:
             lines.append(f"- [{name}]({url})")
         else:
             try:
-                lines.append(f"- [{name}]({Path(url).as_uri()})")
+                rel = os.path.relpath(url, langgraph_agent.WORKING_DIR)
+                rel = rel.replace("\\", "/")
             except (OSError, ValueError):
-                lines.append(f"- `{url}`")
+                rel = name
+            lines.append(f"- `{rel}`")
     return "\n".join(lines) + "\n"
 s3_prefix = "docs"
 capture_prefix = "captures"
@@ -1175,6 +1195,21 @@ def get_tool_info(tool_name, tool_content):
             except json.JSONDecodeError:
                 extra.extend(_parse_execute_code_artifact_paths(tool_content))
         for u in extra:
+            if u and u not in urls:
+                urls.append(u)
+
+    if not urls:
+        extras: list = []
+        if isinstance(tool_content, str):
+            try:
+                data = json.loads(tool_content)
+                if isinstance(data, dict) and isinstance(data.get("output"), str):
+                    extras.extend(_urls_from_file_saved_message(data["output"]))
+            except json.JSONDecodeError:
+                extras.extend(_urls_from_file_saved_message(tool_content))
+        else:
+            extras.extend(_urls_from_file_saved_message(tool_content))
+        for u in extras:
             if u and u not in urls:
                 urls.append(u)
 

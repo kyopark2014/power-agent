@@ -62,16 +62,36 @@ ARTIFACT_EXT = frozenset({
     ".xlsx",
     ".ppt",
     ".pptx",
+    ".js",  # e.g. generated scripts; still offer download when created
 })
 
 _mpl_runtime_ready = False
 
-def _artifact_files_mtime_snapshot() -> dict:
-    """Return a dict of relative path -> mtime for files under artifacts/."""
+_EXCLUDED_SNAPSHOT_DIRS = frozenset({
+    "node_modules",
+    ".git",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "site-packages",
+    "dist",
+    "build",
+    ".mypy_cache",
+    ".pytest_cache",
+})
+
+
+def _working_dir_files_mtime_snapshot() -> dict:
+    """Relative path -> mtime for files under WORKING_DIR (vendor/cache dirs excluded).
+
+    Code often writes under artifacts/ but may also write to the working dir root;
+    scanning only artifacts/ missed those files and left download lists empty.
+    """
     snap = {}
-    if not os.path.isdir(ARTIFACTS_DIR):
+    if not os.path.isdir(WORKING_DIR):
         return snap
-    for dirpath, _, filenames in os.walk(ARTIFACTS_DIR):
+    for dirpath, dirnames, filenames in os.walk(WORKING_DIR):
+        dirnames[:] = [d for d in dirnames if d not in _EXCLUDED_SNAPSHOT_DIRS]
         for fn in filenames:
             full = os.path.join(dirpath, fn)
             try:
@@ -255,6 +275,10 @@ def execute_code(code: str) -> str:
     Variables and imports from previous calls persist across invocations.
     Generated files should be saved to the 'artifacts/' directory.
 
+    Document types (do not confuse extensions):
+    - Word / 한글 보고서 산출물 → 반드시 '.docx' (권장: Python python-docx). '.js'는 자바스크립트 소스용이며 Word 본문 보고서 파일명으로 쓰지 마세요.
+    - PDF → '.pdf', Excel → '.xlsx' 등 실제 형식에 맞는 확장자를 사용하세요.
+
     Path variables (pre-defined, do NOT redefine):
     - WORKING_DIR: absolute path to application directory
     - ARTIFACTS_DIR: absolute path to artifacts directory (WORKING_DIR/artifacts)
@@ -269,7 +293,7 @@ def execute_code(code: str) -> str:
     """
     logger.info(f"###### execute_code ######")
     os.makedirs(ARTIFACTS_DIR, exist_ok=True)
-    before_files = _artifact_files_mtime_snapshot()
+    before_files = _working_dir_files_mtime_snapshot()
 
     old_cwd = os.getcwd()
     stdout_capture = io.StringIO()
@@ -307,7 +331,7 @@ def execute_code(code: str) -> str:
         if not result.strip():
             result = "Code executed successfully (no output)."
 
-        after_files = _artifact_files_mtime_snapshot()
+        after_files = _working_dir_files_mtime_snapshot()
         touched = _touched_artifact_paths(before_files, after_files)
         artifact_rels = [
             r
@@ -343,7 +367,8 @@ def write_file(filepath: str, content: str = "") -> str:
     Never call without content. Both filepath and content are required in a single call.
 
     Args:
-        filepath: Absolute path or path relative to WORKING_DIR.
+        filepath: Absolute path or path relative to WORKING_DIR. Use the real file extension
+            (e.g. '.docx' for Word, '.md' for Markdown). Do not save report bodies as '.js'.
         content: The text content to write. REQUIRED - must not be omitted. Must include full file content.
 
     Returns:
@@ -363,8 +388,10 @@ def write_file(filepath: str, content: str = "") -> str:
         with open(full_path, "w", encoding="utf-8") as f:
             f.write(content)
 
+        rel = os.path.relpath(full_path, WORKING_DIR)
         result_msg = f"File saved: {filepath}"
-        return result_msg
+        payload = {"output": result_msg, "path": _paths_for_ui([rel])}
+        return json.dumps(payload, ensure_ascii=False)
     except Exception as e:
         return f"Failed to save file: {str(e)}"
 
