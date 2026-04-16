@@ -210,8 +210,6 @@ def get_chat():
 
     parameters = {
         "max_tokens":maxOutputTokens,     
-        "temperature":0.1,
-        "top_k":250,
         "stop_sequences": [STOP_SEQUENCE]
     }
 
