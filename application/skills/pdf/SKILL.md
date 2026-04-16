@@ -14,48 +14,28 @@ All generated files should be saved to the `artifacts/` directory.
 ## 한국어 폰트 설정 (필수 — 모든 PDF 생성 코드에 포함할 것)
 
 한국어가 포함된 PDF를 만들 때는 반드시 한국어 폰트를 등록해야 합니다.
-아래 폰트 등록 코드를 **모든 PDF 생성 코드의 맨 앞에 반드시 포함**하세요.
 
-**중요**: macOS의 AppleSDGothicNeo.ttc는 PostScript outlines이라 reportlab에서 사용할 수 없습니다.
+`execute_code` 실행 시 작업 디렉터리는 `WORKING_DIR`(application 폴더)이며, **번들 TTF는 `WORKING_DIR/assets/NanumGothic-Regular.ttf`** 입니다. 경로가 불안정하면 `os.path.join(WORKING_DIR, "assets", "NanumGothic-Regular.ttf")`를 사용하세요.
 
-폰트 우선순위:
-1. `assets/NanumGothic-Regular.ttf` (TTF 파일 — 가장 확실)
-2. CID 폰트 `HYGothic-Medium` (reportlab 내장 — 별도 파일 불필요, 확실한 폴백)
+**권장**: 런타임에 이미 주입된 **`register_korean_font()`** 를 호출하세요. 이 함수는 위 Nanum TTF를 최우선으로 등록하고, 없으면 CID `HYGothic-Medium` 등으로 폴백합니다.
 
 ```python
-import os
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.pdfbase.cidfonts import UnicodeCIDFont
-
-def register_korean_font():
-    """한국어 폰트를 등록하고 폰트 이름을 반환한다. PDF 생성 전에 반드시 호출."""
-    # 1순위: NanumGothic TTF
-    ttf_paths = [
-        os.path.join("assets", "NanumGothic-Regular.ttf"),
-        "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
-        "/usr/share/fonts/nanum/NanumGothic.ttf",
-        "/Library/Fonts/NanumGothic.ttf",
-    ]
-    for path in ttf_paths:
-        if os.path.exists(path):
-            try:
-                pdfmetrics.registerFont(TTFont("KoreanFont", path))
-                return "KoreanFont"
-            except Exception:
-                continue
-
-    # 2순위: CID 폰트 (reportlab 내장, 별도 파일 불필요)
-    try:
-        pdfmetrics.registerFont(UnicodeCIDFont("HYGothic-Medium"))
-        return "HYGothic-Medium"
-    except Exception:
-        pass
-
-    return "Helvetica"  # 최후 폴백 (한국어 미지원)
-
-font_name = register_korean_font()
+font_name = register_korean_font()  # execute_code 전역에서 제공; PDF(reportlab) 코드 맨 앞에 한 번 호출
 ```
+
+**중요**: macOS의 `AppleSDGothicNeo.ttc`는 PostScript outlines이라 reportlab에서 사용할 수 없습니다.
+
+### ParagraphStyle에서 `fontName` 중복 오류 방지
+
+`TypeError: ParagraphStyle() got multiple values for keyword argument 'fontName'` 는 **같은 호출에서 `fontName`이 두 번** 넘어갈 때 발생합니다. 예: `ParagraphStyle(..., fontName=font_name, **extra)` 인데 `extra` 안에도 `fontName`이 있는 경우. 헬퍼에 스타일 옵션을 넘길 때는 `extra.pop("fontName", None)` 하거나, `fontName`은 명시 인자만 쓰고 `**kwargs`에는 넣지 마세요.
+
+글머리 기호(불릿) 한글은 본문과 같이 **`bulletFontName=font_name`** 을 지정하는 것이 안전합니다.
+
+폰트 우선순위 (`register_korean_font`와 동일):
+1. `WORKING_DIR/assets/NanumGothic-Regular.ttf` (TTF — 저장소에 포함 권장)
+2. Linux/macOS 일반 경로의 Nanum TTF
+3. CID 폰트 `HYGothic-Medium` (reportlab 내장)
+4. 최후 폴백 `Helvetica` (한국어 미지원)
 
 ## Creating New PDFs (reportlab)
 
@@ -80,35 +60,17 @@ from reportlab.lib.units import inch
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 
-# 1) 한국어 폰트 등록
-font_name = "Helvetica"
-for path in [os.path.join("assets", "NanumGothic-Regular.ttf"),
-             "/usr/share/fonts/truetype/nanum/NanumGothic.ttf"]:
-    if os.path.exists(path):
-        try:
-            pdfmetrics.registerFont(TTFont("KoreanFont", path))
-            font_name = "KoreanFont"
-            break
-        except Exception:
-            continue
-if font_name == "Helvetica":
-    try:
-        pdfmetrics.registerFont(UnicodeCIDFont("HYGothic-Medium"))
-        font_name = "HYGothic-Medium"
-    except Exception:
-        pass
+# 1) 한국어 폰트 등록 (execute_code가 제공하는 register_korean_font 사용)
+font_name = register_korean_font()
 
-# 2) 한국어 스타일 정의
+# 2) 한국어 스타일 정의 — fontName은 여기서만 지정 (헬퍼에 **kwargs 넘길 때 fontName 중복 금지)
 styles = getSampleStyleSheet()
 styles.add(ParagraphStyle("Title_KO",   parent=styles["Title"],    fontName=font_name, fontSize=20, spaceAfter=20, textColor=colors.HexColor("#1a1a2e")))
 styles.add(ParagraphStyle("H1_KO",      parent=styles["Heading1"], fontName=font_name, fontSize=16, spaceAfter=14, textColor=colors.HexColor("#16213e")))
 styles.add(ParagraphStyle("H2_KO",      parent=styles["Heading2"], fontName=font_name, fontSize=14, spaceAfter=12, textColor=colors.HexColor("#0f3460")))
 styles.add(ParagraphStyle("Normal_KO",  parent=styles["Normal"],   fontName=font_name, fontSize=10, leading=14, spaceAfter=8))
-styles.add(ParagraphStyle("Bullet_KO",  parent=styles["Normal"],   fontName=font_name, fontSize=10, leading=14, leftIndent=20, bulletIndent=10))
+styles.add(ParagraphStyle("Bullet_KO",  parent=styles["Normal"],   fontName=font_name, bulletFontName=font_name, fontSize=10, leading=14, leftIndent=20, bulletIndent=10))
 
 # 3) PDF 빌드
 os.makedirs("artifacts", exist_ok=True)
@@ -139,27 +101,8 @@ from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 
-# 폰트 등록
-font_name = "Helvetica"
-for path in [os.path.join("assets", "NanumGothic-Regular.ttf"),
-             "/usr/share/fonts/truetype/nanum/NanumGothic.ttf"]:
-    if os.path.exists(path):
-        try:
-            pdfmetrics.registerFont(TTFont("KoreanFont", path))
-            font_name = "KoreanFont"
-            break
-        except Exception:
-            continue
-if font_name == "Helvetica":
-    try:
-        pdfmetrics.registerFont(UnicodeCIDFont("HYGothic-Medium"))
-        font_name = "HYGothic-Medium"
-    except Exception:
-        pass
+font_name = register_korean_font()
 
 styles = getSampleStyleSheet()
 styles.add(ParagraphStyle("Title_KO",  parent=styles["Title"],  fontName=font_name, fontSize=18, textColor=colors.HexColor("#1a1a2e")))
@@ -195,9 +138,9 @@ print("PDF 생성 완료: artifacts/table_report.pdf")
 ```
 
 ### Important Notes for reportlab
-- **한국어 텍스트를 사용할 때는 반드시 위의 폰트 등록 코드를 포함하세요.**
+- **한국어 텍스트를 사용할 때는 `register_korean_font()`를 호출하세요** (`execute_code` 환경에서 전역 제공).
 - macOS의 `AppleSDGothicNeo.ttc`는 PostScript outlines이라 reportlab에서 사용할 수 없습니다. 절대 사용하지 마세요.
-- TTF 폰트(`assets/NanumGothic-Regular.ttf`)가 없으면 CID 폰트 `HYGothic-Medium`을 사용하세요.
+- 번들 TTF는 `WORKING_DIR/assets/NanumGothic-Regular.ttf`이며, 없으면 CID `HYGothic-Medium` 등으로 폴백합니다.
 - 폰트를 등록하지 않으면 한국어가 깨지거나 빈 사각형(□)으로 표시됩니다.
 - NEVER use Unicode subscript/superscript characters (₀₁₂₃₄₅₆₇₈₉) in ReportLab PDFs — use `<sub>` and `<super>` tags instead.
 

@@ -47,7 +47,22 @@ _user_bin = os.path.expanduser(f"~/Library/Python/{_py_ver}/bin")
 if os.path.isdir(_user_bin) and _user_bin not in os.environ.get("PATH", ""):
     os.environ["PATH"] = _user_bin + os.pathsep + os.environ.get("PATH", "")
 
-ARTIFACT_EXT = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx"})
+ARTIFACT_EXT = frozenset({
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".svg",
+    ".bmp",
+    ".pdf",
+    ".doc",
+    ".docx",
+    ".xls",
+    ".xlsx",
+    ".ppt",
+    ".pptx",
+})
 
 _mpl_runtime_ready = False
 
@@ -154,6 +169,46 @@ def _ensure_matplotlib_runtime():
         logger.info(f"matplotlib runtime setup skipped: {e}")
         _mpl_runtime_ready = True
 
+
+def register_korean_font() -> str:
+    """Register a Korean-capable font for ReportLab (execute_code tool).
+
+    Prefer ``WORKING_DIR/assets/NanumGothic-Regular.ttf``, then common system paths,
+    then built-in CID ``HYGothic-Medium``. Returns the font name to pass as
+    ``fontName`` / ``bulletFontName`` on ParagraphStyle and table styles.
+    """
+    try:
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+    except ImportError:
+        return "Helvetica"
+
+    ttf_candidates = [
+        os.path.join(WORKING_DIR, "assets", "NanumGothic-Regular.ttf"),
+        os.path.join("assets", "NanumGothic-Regular.ttf"),
+        "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
+        "/usr/share/fonts/nanum/NanumGothic.ttf",
+        "/Library/Fonts/NanumGothic.ttf",
+    ]
+    for path in ttf_candidates:
+        if not os.path.isfile(path):
+            continue
+        try:
+            pdfmetrics.registerFont(TTFont("KoreanFont", path))
+            return "KoreanFont"
+        except Exception:
+            continue
+
+    try:
+        pdfmetrics.registerFont(UnicodeCIDFont("HYGothic-Medium"))
+        return "HYGothic-Medium"
+    except Exception:
+        pass
+
+    return "Helvetica"
+
+
 _exec_globals = {
     "__builtins__": __builtins__,
     "subprocess": _subprocess,
@@ -171,6 +226,7 @@ _exec_globals = {
     "requests": _requests,
     "WORKING_DIR": WORKING_DIR,
     "ARTIFACTS_DIR": ARTIFACTS_DIR,
+    "register_korean_font": register_korean_font,
 }
 
 import datetime
@@ -202,6 +258,7 @@ def execute_code(code: str) -> str:
     Path variables (pre-defined, do NOT redefine):
     - WORKING_DIR: absolute path to application directory
     - ARTIFACTS_DIR: absolute path to artifacts directory (WORKING_DIR/artifacts)
+    - register_korean_font(): registers Nanum TTF or CID fallback for ReportLab; returns font name str
 
     Args:
         code: Python code to execute.

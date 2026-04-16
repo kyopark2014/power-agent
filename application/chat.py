@@ -858,6 +858,41 @@ def update_final_result(notification_queue, message):
 tool_input_list = dict()
 
 sharing_url = config["sharing_url"] if "sharing_url" in config else None
+
+
+def _parse_execute_code_artifact_paths(tool_content: str) -> list:
+    """Parse absolute paths from execute_code output after an [artifacts] block."""
+    if not isinstance(tool_content, str) or "[artifacts]" not in tool_content:
+        return []
+    idx = tool_content.find("[artifacts]")
+    rest = tool_content[idx + len("[artifacts]") :].strip()
+    out = []
+    for line in rest.splitlines():
+        line = line.strip()
+        if line:
+            out.append(line)
+    return out
+
+
+def _format_artifact_links_markdown(artifact_urls: list) -> str:
+    """Append clickable markdown for local paths (file://) or http(s) URLs."""
+    from pathlib import Path
+
+    if not artifact_urls:
+        return ""
+    lines = ["", "### 생성된 파일"]
+    for url in artifact_urls:
+        name = url.split("/")[-1].split("?")[0]
+        if not name or name == url:
+            name = Path(url).name
+        if url.startswith(("http://", "https://")):
+            lines.append(f"- [{name}]({url})")
+        else:
+            try:
+                lines.append(f"- [{name}]({Path(url).as_uri()})")
+            except (OSError, ValueError):
+                lines.append(f"- `{url}`")
+    return "\n".join(lines) + "\n"
 s3_prefix = "docs"
 capture_prefix = "captures"
 
@@ -1130,6 +1165,19 @@ def get_tool_info(tool_name, tool_content):
         except json.JSONDecodeError:
             pass
 
+    if tool_name == "execute_code":
+        extra: list = []
+        if isinstance(tool_content, str):
+            try:
+                data = json.loads(tool_content)
+                if isinstance(data, dict) and isinstance(data.get("output"), str):
+                    extra.extend(_parse_execute_code_artifact_paths(data["output"]))
+            except json.JSONDecodeError:
+                extra.extend(_parse_execute_code_artifact_paths(tool_content))
+        for u in extra:
+            if u and u not in urls:
+                urls.append(u)
+
     return content, urls, tool_references
 
 async def create_agent(mcp_servers: list, history_mode: str="Disable") -> tuple[str, list]:
@@ -1308,6 +1356,9 @@ async def run_langgraph_agent(query, mcp_servers, history_mode, notification_que
             page_content = reference['content'][:100].replace("\n", "")
             ref += f"{i+1}. [{reference['title']}]({reference['url']}), {page_content}...\n"    
         result += ref
+
+    if artifacts:
+        result += _format_artifact_links_markdown(artifacts)
     
     if notification_queue is not None and debug_mode == "Enable":
         update_final_result(notification_queue, result)

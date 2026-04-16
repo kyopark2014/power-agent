@@ -6,9 +6,11 @@ import mcp_config
 import logging
 import sys
 import io
+import os
 import asyncio
 import skill
 import utils
+from pathlib import Path
 from notification_queue import NotificationQueue
 
 logging.basicConfig(
@@ -371,10 +373,31 @@ if prompt := st.chat_input("메시지를 입력하세요."):
                 "artifacts": artifacts if artifacts else []
             })
 
-            for url in artifacts:
+            _artifact_image_ext = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp"})
+            for i, url in enumerate(artifacts):
                 logger.info(f"url: {url}")
-                file_name = url[url.rfind('/')+1:]
-                st.image(url, caption=file_name, use_container_width=True)
+                file_name = url.split("/")[-1].split("?")[0]
+                if not file_name or file_name == url:
+                    file_name = Path(url).name
+                ext = os.path.splitext(file_name)[1].lower()
+                if ext in _artifact_image_ext:
+                    try:
+                        st.image(url, caption=file_name, use_container_width=True)
+                    except Exception as e:
+                        logger.info(f"st.image failed: {e}")
+                        st.markdown(f"- [{file_name}]({Path(url).as_uri()})")
+                elif url.startswith(("http://", "https://")):
+                    st.markdown(f"- [{file_name}]({url})")
+                elif os.path.isfile(url):
+                    with open(url, "rb") as f:
+                        st.download_button(
+                            label=f"다운로드: {file_name}",
+                            data=f.read(),
+                            file_name=file_name,
+                            key=f"artifact_dl_{i}_{hash(url) & 0xFFFFFFFF}",
+                        )
+                else:
+                    st.markdown(f"- [{file_name}]({Path(url).as_uri()})")
         
         elif mode == "이미지 분석":
             if file_bytes is None:
