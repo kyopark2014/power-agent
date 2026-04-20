@@ -102,7 +102,6 @@ with st.sidebar:
             "noaa",
             "web_fetch",
             "image generation",
-            "noaa",
             "사용자 설정"
         ]
         mcp_selections = {}

@@ -564,8 +564,8 @@ async def call_model(state: State, config):
     artifacts = state['artifacts'] if 'artifacts' in state else []
 
     cfg = config.get("configurable") or {}
-    tools = cfg.get("tools") or config.get("tools")
-    system = cfg.get("system_prompt") or config.get("system_prompt")
+    tools = cfg.get("tools") 
+    system = cfg.get("system_prompt") 
     if system is None:
         system = BASE_SYSTEM_PROMPT
 
