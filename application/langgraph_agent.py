@@ -481,6 +481,50 @@ def get_builtin_tools() -> list:
     else:
         return [execute_code, write_file, read_file, bash, get_current_time]
 
+def sanitize_messages_for_bedrock(messages: list) -> list:
+    """Bedrock requires every assistant tool_use to be followed by tool_result for each id.
+
+    Checkpoint/history can contain AIMessage(tool_calls) without matching ToolMessage
+    (e.g. interrupted turn). Strip broken tool rounds and drop orphan tool results.
+    """
+    msgs = list(messages)
+    out: list = []
+    i = 0
+    n = len(msgs)
+    while i < n:
+        msg = msgs[i]
+        if isinstance(msg, ToolMessage):
+            logger.warning(
+                "Bedrock compatibility: dropping orphan ToolMessage (no preceding tool_use)"
+            )
+            i += 1
+            continue
+        if isinstance(msg, AIMessage) and getattr(msg, "tool_calls", None):
+            needed = {tc["id"] for tc in msg.tool_calls}
+            tool_msgs: list = []
+            j = i + 1
+            while j < n and isinstance(msgs[j], ToolMessage):
+                tool_msgs.append(msgs[j])
+                j += 1
+            got = {tm.tool_call_id for tm in tool_msgs}
+            if needed <= got:
+                out.append(msg)
+                out.extend(tool_msgs)
+                i = j
+                continue
+            logger.warning(
+                "Bedrock compatibility: stripping tool_calls (expected ids %s, got %s)",
+                needed,
+                got,
+            )
+            out.append(AIMessage(content=msg.content or ""))
+            i = j
+            continue
+        out.append(msg)
+        i += 1
+    return out
+
+
 def message_chunk_to_message(chunk: BaseMessage) -> BaseMessage:
     """Convert a message chunk to a `Message`.
 
@@ -519,16 +563,20 @@ async def call_model(state: State, config):
     
     artifacts = state['artifacts'] if 'artifacts' in state else []
 
-    tools = config.get("configurable", {}).get("tools")
-    system = config.get("configurable", {}).get("system_prompt")
+    cfg = config.get("configurable") or {}
+    tools = cfg.get("tools") or config.get("tools")
+    system = cfg.get("system_prompt") or config.get("system_prompt")
+    if system is None:
+        system = BASE_SYSTEM_PROMPT
 
-    chatModel = chat.get_chat()    
-    
-    model = chatModel.bind_tools(tools)
+    chatModel = chat.get_chat()
+
+    model = chatModel.bind_tools(tools) if tools else chatModel
 
     try:
+        raw = state["messages"]
         messages = []
-        for msg in state["messages"]:
+        for msg in sanitize_messages_for_bedrock(raw):
             if isinstance(msg, ToolMessage):
                 content = msg.content
                 if isinstance(content, list):

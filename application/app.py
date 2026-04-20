@@ -76,6 +76,7 @@ with st.sidebar:
         logger.info(f"default_skill_selections: {default_skill_selections}")
         with st.expander("Skill 옵션 선택", expanded=True):
             available_skill_info = skill.available_skill_info("base")
+            logger.info(f"available_skill_info: {available_skill_info}")
             for s in available_skill_info:
                 default_value = s["name"] in default_skill_selections
                 skill_selections[s["name"]] = st.checkbox(s["name"], key=f"skill_{s['name']}", value=default_value, help=s["description"], disabled=False)
@@ -97,7 +98,8 @@ with st.sidebar:
             "knowledge base", 
             "aws documentation", 
             "trade info", 
-            "weather", 
+            "weather",
+            "noaa",
             "web_fetch",
             "image generation",
             "사용자 설정"

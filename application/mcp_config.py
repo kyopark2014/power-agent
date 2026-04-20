@@ -62,6 +62,16 @@ def load_config(mcp_type):
                 }
             }
         }
+
+    elif mcp_type == "noaa":
+        return {
+            "mcpServers": {
+                "noaa-energy-news": {
+                    "command": "python",
+                    "args": [f"{workingDir}/mcp_server_noaa.py"],
+                }
+            }
+        }
         
     elif mcp_type == "kb-retriever":
         return {
