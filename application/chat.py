@@ -25,6 +25,7 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.store.memory import InMemoryStore
+from notification_queue import NotificationQueue
 
 import logging
 import sys
@@ -1213,7 +1214,7 @@ def get_tool_info(tool_name, tool_content):
 
     return content, urls, tool_references
 
-async def create_agent(mcp_servers: list, history_mode: str="Disable") -> tuple[str, list]:
+async def create_agent(mcp_servers: list, skill_list: list, history_mode: str="Disable") -> tuple[str, list]:
     # builtin tools
     tools = langgraph_agent.get_builtin_tools()
     logger.info(f"builtin_tools count: {len(tools)}")
@@ -1246,7 +1247,9 @@ async def create_agent(mcp_servers: list, history_mode: str="Disable") -> tuple[
     if skill_mode == "Enable":        
         tools.extend(skill.get_skill_tools())
 
-        skill_info = skill.selected_skill_info("base")
+        skill_info = skill.get_skill_info(skill_list)
+        logger.info(f"skill_info: {skill_info}")
+
         system_prompt = skill.build_skill_prompt(skill_info)
         
     else:
@@ -1287,7 +1290,7 @@ active_mcp_servers = []
 active_skills = []
 current_id = None
 
-async def run_langgraph_agent(query, mcp_servers, history_mode, notification_queue):
+async def run_langgraph_agent(query: str, mcp_servers: list, skill_list: list, history_mode: str, notification_queue: NotificationQueue=None):
     global app, config, active_mcp_servers, active_skills, current_id
 
     queue = notification_queue if notification_queue else None
@@ -1297,14 +1300,12 @@ async def run_langgraph_agent(query, mcp_servers, history_mode, notification_que
     artifacts = []
     references = []
 
-    skill_info = skill.selected_skill_info("base")
-
-    if app is None or active_mcp_servers != mcp_servers or active_skills != skill_info or current_id != user_id:
+    if app is None or active_mcp_servers != mcp_servers or active_skills != skill_list or current_id != user_id:
         active_mcp_servers = mcp_servers
-        active_skills = skill_info
+        active_skills = skill_list
         current_id = user_id
 
-        app, config = await create_agent(mcp_servers, history_mode)
+        app, config = await create_agent(mcp_servers, skill_list, history_mode)
     
     if app is None:
         logger.error("Failed to create agent - app is None")
