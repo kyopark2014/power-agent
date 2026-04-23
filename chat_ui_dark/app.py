@@ -38,6 +38,15 @@ utils_mod.load_config = _load_config_with_default_skills
 import info
 import chat
 
+
+def _get_skill_list():
+    """application/app.py 의 selected_skills / default_skills 와 동일한 소스 (config + 기본값)."""
+    cfg = utils_mod.load_config()
+    skills = cfg.get("default_skills")
+    if not skills:
+        return list(_DEFAULT_SKILLS)
+    return list(skills)
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -205,6 +214,7 @@ def _run_langgraph_sync(message, history_mode, notification_queue):
         chat.run_langgraph_agent(
             query=message,
             mcp_servers=DEFAULT_MCP_SERVERS,
+            skill_list=_get_skill_list(),
             history_mode=history_mode,
             notification_queue=notification_queue,
         )
