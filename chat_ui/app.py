@@ -6,6 +6,7 @@ from flask import Flask, request, jsonify, send_from_directory, Response, stream
 import os
 import sys
 import json
+import socket
 import logging
 import queue
 import threading
@@ -37,6 +38,15 @@ utils_mod.load_config = _load_config_with_default_skills
 
 import info
 import chat
+
+
+def _get_skill_list():
+    """application/app.py 의 selected_skills / default_skills 와 동일한 소스 (config + 기본값)."""
+    cfg = utils_mod.load_config()
+    skills = cfg.get("default_skills")
+    if not skills:
+        return list(_DEFAULT_SKILLS)
+    return list(skills)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -205,6 +215,7 @@ def _run_langgraph_sync(message, history_mode, notification_queue):
         chat.run_langgraph_agent(
             query=message,
             mcp_servers=DEFAULT_MCP_SERVERS,
+            skill_list=_get_skill_list(),
             history_mode=history_mode,
             notification_queue=notification_queue,
         )
@@ -290,8 +301,26 @@ def health_check():
     return jsonify({"status": "healthy", "timestamp": datetime.now().isoformat()})
 
 
+def _find_listening_port(preferred: int, max_attempts: int = 20) -> int:
+    """prefered 포트가 사용 중이면 그 다음 번들을 순서대로 시도합니다."""
+    for port in range(preferred, preferred + max_attempts):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                s.bind(("0.0.0.0", port))
+                return port
+            except OSError:
+                continue
+    raise RuntimeError(
+        f"사용 가능한 포트를 찾지 못했습니다. ({preferred}~{preferred + max_attempts - 1})"
+    )
+
+
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5001))
+    preferred = int(os.environ.get("PORT", 5001))
+    port = _find_listening_port(preferred)
+    if port != preferred:
+        print(f"Port {preferred} is in use; using {port} instead.", flush=True)
     debug = os.environ.get("DEBUG", "True").lower() == "true"
     print(f"Starting Chat UI (run_langgraph_agent) on port {port}")
     print(f"Open http://localhost:{port}")
