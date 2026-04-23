@@ -52,7 +52,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # application/app.py sidebar 기본 MCP 선택과 동일
-DEFAULT_MCP_SERVERS = ["tavily", "knowledge base", "web_fetch"]
+DEFAULT_MCP_SERVERS = ["tavily", "knowledge base", "web_fetch", "weather"]
 
 # Streamlit 앱 기본: Skill Mode·Debug Mode 체크 켜짐 → "Enable"
 _DEFAULT_DEBUG = "Enable"
