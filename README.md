@@ -6,9 +6,9 @@
 
 ```mermaid
 flowchart TB
-  subgraph UI["Streamlit (app.py)"]
-    M["모드: 대화 / RAG / Agent / Agent(Chat) / 이미지"]
-    SKUI[Skill / MCP 선택]
+  subgraph UI["Streamlit app.py"]
+    M["모드: 대화, RAG, Agent, Agent Chat, 이미지"]
+    SKUI["Skill / MCP 선택"]
     NQ[NotificationQueue]
   end
 
@@ -16,29 +16,29 @@ flowchart TB
     BR[ChatBedrock]
   end
 
-  subgraph Skills["Agent Skills (skill.py)"]
+  subgraph Skills["Agent Skills skill.py"]
     SRC["skills/*/SKILL.md"]
     SM[SkillManager]
     BSP[build_skill_prompt]
     GSI[get_skill_instructions]
   end
 
-  subgraph LGStack["LangGraph Agent (langgraph_agent.py + chat.py)"]
+  subgraph LGStack["LangGraph Agent"]
     RLA[run_langgraph_agent]
     CA[create_agent]
-    SG["StateGraph: agent ↔ action"]
+    SG["StateGraph: agent - action"]
     CM[call_model]
     TN[ToolNode]
-    BT["Built-in: execute_code, write_file, read_file, bash, upload_file_to_s3, get_current_time"]
+    BT["Built-in tools"]
     MSC[MultiServerMCPClient]
   end
 
-  subgraph MCPServers["MCP Servers (mcp_config.py)"]
+  subgraph MCPServers["MCP Servers mcp_config.py"]
     T[tavily]
     KB[knowledge base]
     AWS[aws documentation]
     TI[trade info]
-    W[korea_weather / noaa]
+    W["korea_weather, noaa"]
     WF[web_fetch]
     IG[image generation]
   end
@@ -48,7 +48,7 @@ flowchart TB
     S3[(S3)]
   end
 
-  M -->|Agent / Agent(Chat)| RLA
+  M -->|"Agent modes"| RLA
   SKUI -->|skill_list| BSP
   SKUI -->|mcp_servers| CA
 
