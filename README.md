@@ -2,6 +2,81 @@
 
 여기서는 전력 거래 솔루션을 위한 Agent의 개발 및 테스트를 위한 주요 기술에 대해 설명합니다.
 
+## Operation Architecture
+
+```mermaid
+flowchart TB
+  subgraph UI["Streamlit (app.py)"]
+    M["모드: 대화 / RAG / Agent / Agent(Chat) / 이미지"]
+    SKUI[Skill / MCP 선택]
+    NQ[NotificationQueue]
+  end
+
+  subgraph LLM["Amazon Bedrock"]
+    BR[ChatBedrock]
+  end
+
+  subgraph Skills["Agent Skills (skill.py)"]
+    SRC["skills/*/SKILL.md"]
+    SM[SkillManager]
+    BSP[build_skill_prompt]
+    GSI[get_skill_instructions]
+  end
+
+  subgraph LGStack["LangGraph Agent (langgraph_agent.py + chat.py)"]
+    RLA[run_langgraph_agent]
+    CA[create_agent]
+    SG["StateGraph: agent ↔ action"]
+    CM[call_model]
+    TN[ToolNode]
+    BT["Built-in: execute_code, write_file, read_file, bash, upload_file_to_s3, get_current_time"]
+    MSC[MultiServerMCPClient]
+  end
+
+  subgraph MCPServers["MCP Servers (mcp_config.py)"]
+    T[tavily]
+    KB[knowledge base]
+    AWS[aws documentation]
+    TI[trade info]
+    W[korea_weather / noaa]
+    WF[web_fetch]
+    IG[image generation]
+  end
+
+  subgraph Storage["Artifacts / S3"]
+    ART[artifacts/]
+    S3[(S3)]
+  end
+
+  M -->|Agent / Agent(Chat)| RLA
+  SKUI -->|skill_list| BSP
+  SKUI -->|mcp_servers| CA
+
+  RLA --> CA
+  CA --> SG
+  SG --> CM
+  SG --> TN
+  CM --> BR
+  CA --> BT
+  CA --> MSC
+  CA --> GSI
+  BSP -->|system_prompt| CA
+  GSI --> SRC
+  SM --> SRC
+  MSC --> MCPServers
+  BT --> ART
+  BT --> S3
+  RLA --> NQ
+```
+
+| 모드 | 모듈 | 설명 |
+|------|------|------|
+| 일상적인 대화 | `chat.general_conversation` | 대화 이력 + ChatBedrock 스트리밍 |
+| RAG | `chat.run_rag_with_knowledge_base` | Bedrock Knowledge Base 검색(`retrieve`) 후 ChatBedrock으로 답변 생성 |
+| **Agent** | `chat.run_langgraph_agent` | LangGraph + MCP + Skills (히스토리 비활성) |
+| **Agent (Chat)** | `chat.run_langgraph_agent` | LangGraph + MCP + Skills + MemorySaver 대화 이력 |
+| 이미지 분석 | `chat.summarize_image` | ChatBedrock 멀티모달 (이미지 + 텍스트) 분석 |
+
 ## Agent 구현
 
 [app.py](./application/app.py)은 streamlit 환경에서 agent를 실행할 수 있게 합니다. 아래와 같이 [chat.py](./application/chat.py)의 run_langgraph_agent()을 실행합니다. 사용자가 선택한 MCP server의 리스트는 mcp_servers를 제공하고 chat history를 이용시 history_mode을 enable로 설정합니다. containers는 streamlit UI를 위헤 전달됩니다.
