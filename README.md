@@ -6,67 +6,51 @@
 
 ```mermaid
 flowchart TB
-  subgraph UI["Streamlit app.py"]
-    M["모드: 대화, RAG, Agent, Agent Chat, 이미지"]
-    SKUI["Skill / MCP 선택"]
-    NQ[NotificationQueue]
-  end
+  UI["Streamlit app.py"]
 
-  subgraph LLM["Amazon Bedrock"]
-    BR[ChatBedrock]
-  end
-
-  subgraph Skills["Agent Skills skill.py"]
-    SRC["skills/*/SKILL.md"]
-    SM[SkillManager]
+  subgraph Skill["Skill · skill.py"]
+    SKMD["skills/*/SKILL.md"]
     BSP[build_skill_prompt]
     GSI[get_skill_instructions]
   end
 
-  subgraph LGStack["LangGraph Agent"]
-    RLA[run_langgraph_agent]
-    CA[create_agent]
-    SG["StateGraph: agent - action"]
-    CM[call_model]
-    TN[ToolNode]
-    BT["Built-in tools"]
+  subgraph MCP["MCP · mcp_config.py"]
+    LSC[load_selected_config]
     MSC[MultiServerMCPClient]
   end
 
-  subgraph MCPServers["MCP Servers mcp_config.py"]
-    T[tavily]
-    KB[knowledge base]
-    AWS[aws documentation]
-    TI[trade info]
-    W["korea_weather, noaa"]
-    WF[web_fetch]
-    IG[image generation]
+  RLA[run_langgraph_agent]
+  CA[create_agent]
+  BT[Built-in tools]
+
+  subgraph LG["LangGraph StateGraph"]
+    ST((START))
+    AGN["agent · call_model"]
+    ACN["action · ToolNode"]
+    EN((END))
+    ST --> AGN
+    AGN -->|tool_calls| ACN
+    AGN -->|done| EN
+    ACN --> AGN
   end
 
-  subgraph Storage["Artifacts / S3"]
-    ART[artifacts/]
-    S3[(S3)]
-  end
+  BR[ChatBedrock]
 
-  M -->|"Agent modes"| RLA
-  SKUI -->|skill_list| BSP
-  SKUI -->|mcp_servers| CA
+  UI -->|Agent 모드| RLA
+  UI -->|skill_list| BSP
+  UI -->|mcp_servers| LSC
+
+  SKMD --> BSP
+  GSI --> SKMD
+  LSC --> MSC
 
   RLA --> CA
-  CA --> SG
-  SG --> CM
-  SG --> TN
-  CM --> BR
-  CA --> BT
-  CA --> MSC
-  CA --> GSI
   BSP -->|system_prompt| CA
-  GSI --> SRC
-  SM --> SRC
-  MSC --> MCPServers
-  BT --> ART
-  BT --> S3
-  RLA --> NQ
+  MSC -->|tools| CA
+  BT --> CA
+  GSI --> CA
+  CA --> LG
+  AGN --> BR
 ```
 
 | 모드 | 모듈 | 설명 |
