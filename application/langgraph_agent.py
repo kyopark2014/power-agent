@@ -3,6 +3,7 @@ import sys
 import traceback
 import chat
 import utils
+import agentcore_sigv4_auth
 import sys
 import subprocess
 
@@ -707,17 +708,23 @@ def load_multiple_mcp_server_parameters(mcp_json: dict):
   
     server_info = {}
     if mcpServers is not None:
-        for server_name, config in mcpServers.items():
-            if config.get("type") == "streamable_http":
-                server_info[server_name] = {                    
+        for server_name, cfg in mcpServers.items():
+            if cfg.get("type") in ("streamable_http", "http"):
+                connection = {
                     "transport": "streamable_http",
-                    "url": config.get("url"),
-                    "headers": config.get("headers", {})
+                    "url": cfg.get("url"),
+                    "headers": cfg.get("headers", {})
                 }
+                if cfg.get("auth_type") == "aws_sigv4":
+                    connection["auth"] = agentcore_sigv4_auth.AgentCoreSigV4Auth(
+                        region=cfg.get("auth_region", "us-east-1"),
+                        service=cfg.get("auth_service", "bedrock-agentcore"),
+                    )
+                server_info[server_name] = connection
             else:
-                command = config.get("command", "")
-                args = config.get("args", [])
-                env = config.get("env", {})
+                command = cfg.get("command", "")
+                args = cfg.get("args", [])
+                env = cfg.get("env", {})
                 
                 server_info[server_name] = {
                     "transport": "stdio",

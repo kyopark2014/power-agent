@@ -95,7 +95,8 @@ with st.sidebar:
 
         # Change radio to checkbox
         mcp_options = [
-            "tavily", 
+            "tavily",
+            "websearch",
             "knowledge base", 
             "aws documentation", 
             "trade info", 
@@ -106,7 +107,7 @@ with st.sidebar:
             "사용자 설정"
         ]
         mcp_selections = {}
-        default_selections = ["tavily", "knowledge base", "web_fetch"]
+        default_selections = ["knowledge base", "web_fetch", "websearch"]
         
         with st.expander("MCP 옵션 선택", expanded=True):
             for option in mcp_options:
@@ -161,7 +162,16 @@ with st.sidebar:
             "Claude 4.6 Opus",
             "Claude 4.5 Haiku",
             "Claude 4.5 Sonnet",
-            "Claude 4.5 Opus"
+            "Claude 4.5 Opus",
+            "OpenAI GPT 5.4",
+            "OpenAI GPT 5.5",
+            "OpenAI OSS 120B",
+            "OpenAI OSS 20B",
+            "Nova 2 Lite",
+            "Nova Premier",
+            "Nova Pro",
+            "Nova Lite",
+            "Nova Micro",
         ), index=0
     )
 

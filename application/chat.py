@@ -7,6 +7,7 @@ import uuid
 import base64
 import info 
 import utils
+import bedrock_data_retention
 import langgraph_agent
 import mcp_config
 import skill
@@ -16,6 +17,7 @@ from urllib import parse
 from io import BytesIO
 from PIL import Image
 from langchain_aws import ChatBedrock
+from langchain_openai import ChatOpenAI
 from botocore.config import Config
 from botocore.exceptions import ClientError
 from langchain_core.prompts import MessagesPlaceholder, ChatPromptTemplate
@@ -85,7 +87,8 @@ doc_prefix = "docs/"
 model_name = "Claude 4.6 Sonnet"
 model_type = "claude"
 models = info.get_model_info(model_name)
-model_id = models["model_id"]
+number_of_models = len(models)
+model_id = models[0]["model_id"]
 debug_mode = "Enable"
 user_id = "agent"
 skill_mode = "Disable"
@@ -99,8 +102,8 @@ def update(modelName, debugMode, skillMode):
         logger.info(f"model_name: {model_name}")
         
         models = info.get_model_info(model_name)
-        model_id = models["model_id"]
-        model_type = models["model_type"]
+        model_id = models[0]["model_id"]
+        model_type = models[0]["model_type"]
                                 
     if debug_mode != debugMode:
         debug_mode = debugMode        
@@ -175,48 +178,107 @@ def get_max_output_tokens(model_id: str = "") -> int:
     if "claude-sonnet-4" in model_id or "claude-4-sonnet" in model_id or "claude-haiku-4" in model_id:
         return 64000
     return 8192
-    
+
+
+def _build_openai_chat(profile: dict, max_output_tokens: int):
+    """Build OpenAI-on-Bedrock chat model (Mantle Responses API or invoke_model)."""
+    profile_region = profile["bedrock_region"]
+    model_id = profile["model_id"]
+    mantle_api = profile.get("mantle_api", "chat")
+
+    if mantle_api == "responses":
+        def bearer_token_provider() -> str:
+            return bedrock_data_retention.get_bedrock_bearer_token(profile_region)
+
+        return ChatOpenAI(
+            model=model_id,
+            api_key=bearer_token_provider,
+            base_url=f"https://bedrock-mantle.{profile_region}.api.aws/openai/v1",
+            use_responses_api=True,
+            max_tokens=max_output_tokens,
+        )
+
+    boto3_bedrock = boto3.client(
+        service_name="bedrock-runtime",
+        region_name=profile_region,
+        config=Config(
+            retries={"max_attempts": 30},
+            read_timeout=300,
+        ),
+    )
+    chat = ChatBedrock(
+        model_id=model_id,
+        client=boto3_bedrock,
+        model_kwargs={
+            "max_tokens": max_output_tokens,
+            "temperature": 0.1,
+        },
+        region_name=profile_region,
+    )
+    chat.streaming = False
+    return chat
+
+
 def get_chat():
-    global model_type
+    global model_type, selected_chat
 
     logger.info(f"models: {models}")
-    
-    modelId = models['model_id']
-    model_type = models['model_type']
-    if model_type == 'claude':
+    logger.info(f"selected_chat: {selected_chat}")
+
+    profile = models[selected_chat]
+    profile_region = profile["bedrock_region"]
+    modelId = profile["model_id"]
+    model_type = profile["model_type"]
+    if model_type == "claude":
         maxOutputTokens = get_max_output_tokens(modelId)
     else:
-        maxOutputTokens = 5120 # 5k
+        maxOutputTokens = 5120  # 5k
 
-    logger.info(f"modelId: {modelId}, model_type: {model_type}")
+    logger.info(
+        f"bedrock_region: {profile_region}, modelId: {modelId}, model_type: {model_type}"
+    )
 
-    STOP_SEQUENCE = "\n\nHuman:" 
-                          
-    # bedrock   
-    boto3_bedrock = boto3.client(
-        service_name='bedrock-runtime',
-        region_name=bedrock_region,
-        config=Config(
-            retries = {
-                'max_attempts': 30
-            },
-            read_timeout=300
+    if "fable" in modelId.lower():
+        bedrock_data_retention.ensure_fable_data_retention(
+            modelId,
+            bedrock_region=profile_region,
         )
+
+    if profile["model_type"] == "nova":
+        STOP_SEQUENCE = '"\n\n<thinking>", "\n<thinking>", " <thinking>"'
+    elif profile["model_type"] == "claude":
+        STOP_SEQUENCE = "\n\nHuman:"
+    elif profile["model_type"] == "openai":
+        STOP_SEQUENCE = ""
+
+    if profile["model_type"] == "openai":
+        return _build_openai_chat(profile, maxOutputTokens)
+
+    boto3_bedrock = boto3.client(
+        service_name="bedrock-runtime",
+        region_name=profile_region,
+        config=Config(
+            retries={"max_attempts": 30},
+            read_timeout=300,
+        ),
     )
 
     parameters = {
-        "max_tokens":maxOutputTokens,     
-        "stop_sequences": [STOP_SEQUENCE]
+        "max_tokens": maxOutputTokens,
+        "stop_sequences": [STOP_SEQUENCE],
     }
 
-    chat = ChatBedrock(   # new chat model
-        model_id=modelId,
-        client=boto3_bedrock, 
-        model_kwargs=parameters,
-        region_name=utils.bedrock_region,
-        provider="anthropic"
-    )
-    
+    chat_kwargs = {
+        "model_id": modelId,
+        "client": boto3_bedrock,
+        "model_kwargs": parameters,
+        "region_name": profile_region,
+    }
+    if model_type == "claude":
+        chat_kwargs["provider"] = "anthropic"
+
+    chat = ChatBedrock(**chat_kwargs)
+
     return chat
 
 reference_docs = []

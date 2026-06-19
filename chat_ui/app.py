@@ -52,7 +52,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # application/app.py sidebar 기본 MCP 선택과 동일
-DEFAULT_MCP_SERVERS = ["tavily", "knowledge base", "web_fetch", "weather"]
+DEFAULT_MCP_SERVERS = ["tavily", "knowledge base", "web_fetch", "weather", "websearch"]
 
 # Streamlit 앱 기본: Skill Mode·Debug Mode 체크 켜짐 → "Enable"
 _DEFAULT_DEBUG = "Enable"
@@ -284,7 +284,7 @@ def get_models():
             "Claude 3.0 Sonnet",
             "Claude 3.5 Haiku",
         ],
-        "openai": ["OpenAI OSS 120B", "OpenAI OSS 20B"],
+        "openai": ["OpenAI GPT 5.4", "OpenAI GPT 5.5", "OpenAI OSS 120B", "OpenAI OSS 20B"],
         "nova": [
             "Nova 2 Lite",
             "Nova Premier",
