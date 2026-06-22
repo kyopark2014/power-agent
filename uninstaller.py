@@ -18,6 +18,8 @@ project_name = "power-trade"
 region = "us-west-2"
 AGENTCORE_GATEWAY_REGION = "us-east-1"
 AGENTCORE_WEBSEARCH_GATEWAY_NAME = "gateway-websearch"
+AWS_TAVILY_RUNTIME_NAME = "agent_runtime_aws_tavily"
+AWS_TAVILY_RUNTIME_REGION = "us-east-1"
 cloudfront_comment = "CloudFront-for-rag-project"
 oai_comment = "OAI for power-agent"
 
@@ -38,6 +40,10 @@ bedrock_agent_client = boto3.client("bedrock-agent", region_name=region)
 agentcore_control_client = boto3.client(
     "bedrock-agentcore-control",
     region_name=AGENTCORE_GATEWAY_REGION,
+)
+aws_tavily_control_client = boto3.client(
+    "bedrock-agentcore-control",
+    region_name=AWS_TAVILY_RUNTIME_REGION,
 )
 
 
@@ -327,6 +333,58 @@ def _list_all_agentcore_gateway_targets(gateway_id: str):
     return targets
 
 
+def delete_aws_tavily_runtime(skip_confirmation: bool = False) -> bool:
+    """Delete shared aws-tavily AgentCore runtime (prompted, default: keep)."""
+    logger.info("[optional] aws-tavily AgentCore runtime")
+
+    runtime_id = None
+    runtime_arn = None
+    try:
+        response = aws_tavily_control_client.list_agent_runtimes()
+        for agent_runtime in response.get("agentRuntimes", []):
+            if agent_runtime.get("agentRuntimeName") == AWS_TAVILY_RUNTIME_NAME:
+                runtime_id = agent_runtime["agentRuntimeId"]
+                runtime_arn = agent_runtime.get("agentRuntimeArn")
+                break
+
+        if not runtime_id:
+            logger.info(
+                f"  aws-tavily runtime not found: {AWS_TAVILY_RUNTIME_NAME} "
+                f"in {AWS_TAVILY_RUNTIME_REGION}"
+            )
+            return True
+
+        if not skip_confirmation:
+            print("\n" + "=" * 60)
+            print(
+                f"Shared aws-tavily runtime '{AWS_TAVILY_RUNTIME_NAME}' "
+                f"({AWS_TAVILY_RUNTIME_REGION}) will be deleted."
+            )
+            if runtime_arn:
+                print(f"  ARN: {runtime_arn}")
+            print("Other projects (aws-tavily, power-runtime, etc.) may also use this runtime.")
+            print("=" * 60)
+            response = input(
+                "\nDelete aws-tavily AgentCore runtime? (yes/no) [no]: "
+            ).strip().lower()
+            if response != "yes":
+                logger.info("  Skipping aws-tavily runtime deletion (default: no).")
+                return False
+
+        aws_tavily_control_client.delete_agent_runtime(agentRuntimeId=runtime_id)
+        logger.info(f"  ✓ aws-tavily runtime deletion requested: {runtime_arn or runtime_id}")
+        return True
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "ResourceNotFoundException":
+            logger.info("  aws-tavily runtime already deleted")
+            return True
+        logger.warning(f"  Could not delete aws-tavily runtime: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Error deleting aws-tavily runtime: {e}")
+        return False
+
+
 def delete_agentcore_websearch_gateway(skip_confirmation: bool = False) -> bool:
     """Delete AgentCore gateway-websearch and its web-search targets."""
     logger.info("[3.5/6] Deleting AgentCore Web Search gateway")
@@ -548,6 +606,7 @@ def clear_config_json(
     delete_s3_bucket: bool = False,
     delete_cloudfront: bool = False,
     delete_agentcore_gateway: bool = True,
+    delete_aws_tavily: bool = False,
 ):
     """Remove installer-managed fields from application/config.json."""
     config_path = "application/config.json"
@@ -569,8 +628,12 @@ def clear_config_json(
         ])
     if delete_s3_bucket:
         installer_fields.extend(["s3_bucket", "s3_arn"])
-    if delete_cloudfront:
-        installer_fields.append("sharing_url")
+    if delete_aws_tavily:
+        installer_fields.extend([
+            "aws_tavily_agent_runtime_arn",
+            "agent_runtime_role",
+            "tavily_container_image_uri",
+        ])
 
     try:
         with open(config_path, "r") as f:
@@ -581,6 +644,9 @@ def clear_config_json(
     except Exception as e:
         logger.warning(f"  Could not read {config_path}: {e}")
         return
+
+    if delete_cloudfront:
+        installer_fields.append("sharing_url")
 
     for field in installer_fields:
         config_data.pop(field, None)
@@ -633,6 +699,14 @@ def main():
             "(default: ask, default answer no)"
         ),
     )
+    parser.add_argument(
+        "--delete-aws-tavily",
+        action="store_true",
+        help=(
+            "Delete shared aws-tavily AgentCore runtime without a separate confirmation prompt "
+            "(default: ask, default answer no)"
+        ),
+    )
     args = parser.parse_args()
 
     if not args.yes:
@@ -649,6 +723,9 @@ def main():
         print("Shared resources (prompted separately, default: keep):")
         print(f"  S3 bucket:         {bucket_name}")
         print(f"  CloudFront:        {cloudfront_comment}")
+        print(
+            f"  aws-tavily runtime: {AWS_TAVILY_RUNTIME_NAME} ({AWS_TAVILY_RUNTIME_REGION})"
+        )
         print("=" * 60)
         response = input("\nProceed with project-specific resource deletion? (yes/no): ")
         if response.lower() != "yes":
@@ -684,12 +761,16 @@ def main():
         agentcore_gateway_deleted = delete_agentcore_websearch_gateway(
             skip_confirmation=args.delete_agentcore_gateway
         )
+        aws_tavily_deleted = delete_aws_tavily_runtime(
+            skip_confirmation=args.delete_aws_tavily
+        )
         delete_iam_roles(delete_agentcore_gateway_role=agentcore_gateway_deleted)
         delete_secrets()
         clear_config_json(
             delete_s3_bucket=delete_s3_bucket,
             delete_cloudfront=delete_cloudfront,
             delete_agentcore_gateway=agentcore_gateway_deleted,
+            delete_aws_tavily=aws_tavily_deleted,
         )
 
         # Shared resources (only when explicitly confirmed)
@@ -705,6 +786,12 @@ def main():
             delete_cloudfront_oai()
         else:
             logger.info(f"[skip] CloudFront retained (shared resource): {cloudfront_comment}")
+
+        if not aws_tavily_deleted:
+            logger.info(
+                f"[skip] aws-tavily runtime retained (shared resource): "
+                f"{AWS_TAVILY_RUNTIME_NAME} in {AWS_TAVILY_RUNTIME_REGION}"
+            )
 
         elapsed_time = time.time() - start_time
         logger.info("")

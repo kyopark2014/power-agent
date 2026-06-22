@@ -96,6 +96,7 @@ with st.sidebar:
         # Change radio to checkbox
         mcp_options = [
             "tavily",
+            "aws-tavily",
             "websearch",
             "knowledge base", 
             "aws documentation", 
@@ -107,7 +108,7 @@ with st.sidebar:
             "사용자 설정"
         ]
         mcp_selections = {}
-        default_selections = ["knowledge base", "web_fetch", "websearch"]
+        default_selections = ["knowledge base", "web_fetch", "aws-tavily"]
         
         with st.expander("MCP 옵션 선택", expanded=True):
             for option in mcp_options:

@@ -228,7 +228,9 @@ SKILL_USAGE_GUIDE = (
     "skill의 description에 서브커맨드(query, path, explain 등)가 있다면, "
     "사용자 명령의 서브커맨드를 정확히 파악한 후 그에 맞는 동작을 설명하세요.\n"
     "3. 지침에 포함된 코드 패턴을 execute_code 도구로 실행하세요.\n"
-    "4. skill 지침이 없는 일반 질문은 직접 답변하세요.\n"
+    "4. skill 지침이 없는 일반 질문은 직접 답변하세요. "
+    "단, tavily_search 등 웹 검색 도구가 있고 최신 정보·맛집·뉴스 검색이 필요하면 "
+    "직접 답변 대신 해당 도구를 먼저 호출하세요.\n"
 )
 
 def build_skill_prompt(skill_info: list) -> str:

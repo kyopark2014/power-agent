@@ -1262,6 +1262,21 @@ def main():
         logger.info("="*60)
         logger.info("")
         
+        # 7. Install/update shared aws-tavily AgentCore runtime
+        logger.info("[7/7] Installing/updating aws-tavily AgentCore runtime...")
+        try:
+            from installer_aws_tavily import create_iam_policies, create_aws_tavily_runtime
+
+            if create_iam_policies() and create_aws_tavily_runtime():
+                logger.info("✓ aws-tavily AgentCore runtime ready")
+            else:
+                logger.warning(
+                    "aws-tavily installation did not complete. "
+                    "Run `python installer_aws_tavily.py` separately."
+                )
+        except Exception as aws_tavily_error:
+            logger.warning(f"aws-tavily installation skipped or failed: {aws_tavily_error}")
+        
     except Exception as e:
         elapsed_time = time.time() - start_time
         logger.error("")
