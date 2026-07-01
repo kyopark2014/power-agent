@@ -56,7 +56,7 @@ DEFAULT_MCP_SERVERS = ["tavily", "knowledge base", "web_fetch", "websearch"]
 # Streamlit 앱 기본: Skill Mode·Debug Mode 체크 켜짐 → "Enable"
 _DEFAULT_DEBUG = "Enable"
 _DEFAULT_SKILL = "Enable"
-_FALLBACK_MODEL = "Claude 4.5 Sonnet"
+_FALLBACK_MODEL = "Claude 5.0 Sonnet"
 
 app = Flask(__name__)
 
@@ -271,7 +271,9 @@ def stream_langgraph_agent(message, history_mode, model_name):
 def get_models():
     models = {
         "claude": [
+            "Claude 5.0 Sonnet",
             "Claude 4.6 Sonnet",
+            "Claude Fable 5",
             "Claude 4.6 Opus",
             "Claude 4.5 Haiku",
             "Claude 4.5 Sonnet",
