@@ -6,7 +6,7 @@
 
 전체적인 architecture는 아래와 같습니다.
 
-<img width="950" height="475" alt="image" src="https://github.com/user-attachments/assets/0d4427fc-f019-4f03-8daa-5d3cdce1acb8" />
+<img width="800" alt="image" src="https://github.com/user-attachments/assets/0d4427fc-f019-4f03-8daa-5d3cdce1acb8" />
 
 세부 모듈의 구조는 아래와 같습니다.
 
