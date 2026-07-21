@@ -1,0 +1,11 @@
+{
+  "MCP": [
+    "knowledge base",
+    "web_fetch",
+    "aws-tavily"
+  ],
+  "SKILL": [
+    "skill-creator",
+    "seoul-subway"
+  ]
+}
