@@ -273,6 +273,7 @@ def get_models():
     models = {
         "claude": [
             "Claude 5.0 Sonnet",
+            "Claude 5.0 Opus",
             "Claude 4.6 Sonnet",
             "Claude Fable 5",
             "Claude 4.6 Opus",
