@@ -17,7 +17,7 @@ from typing import Any
 from xml.etree import ElementTree as ET
 
 import requests
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 
 logging.basicConfig(
@@ -323,7 +323,7 @@ def run_noaa_energy_news(
     return format_energy_news_text(result)
 
 
-mcp = FastMCP(
+mcp = MCPServer(
     name="noaa-energy-news",
     instructions=(
         "미국 NOAA(noaa.gov) 및 NOAA Climate.gov RSS에서 날씨·기후 뉴스를 가져오고, "
