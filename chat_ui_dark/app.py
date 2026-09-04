@@ -275,6 +275,7 @@ def get_models():
             "Claude 5.0 Opus",
             "Claude 4.6 Sonnet",
             "Claude Fable 5",
+    "Claude Fable 5.1",
             "Claude 4.6 Opus",
             "Claude 4.5 Haiku",
             "Claude 4.5 Sonnet",
