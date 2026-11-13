@@ -16,7 +16,7 @@ from botocore.exceptions import ClientError
 # Configuration (must match installer.py)
 project_name = "power-trade"
 region = "us-west-2"
-AGENTCORE_GATEWAY_REGION = "us-east-1"
+AGENTCORE_GATEWAY_REGION = "us-west-2"
 AGENTCORE_WEBSEARCH_GATEWAY_NAME = "gateway-websearch"
 AWS_TAVILY_RUNTIME_NAME = "agent_runtime_aws_tavily"
 AWS_TAVILY_RUNTIME_REGION = "us-east-1"
